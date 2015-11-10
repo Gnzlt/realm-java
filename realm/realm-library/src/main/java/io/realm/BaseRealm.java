@@ -279,6 +279,10 @@ abstract class BaseRealm implements Closeable {
         checkIfValid();
         sharedGroupManager.advanceRead();
         sendNotifications();
+        // notify RealmResults callbacks (fine-grained notifications)
+        handlerController.notifyAsyncRealmResultsCallbacks();
+        handlerController.notifySyncRealmResultsCallbacks();
+
     }
 
     /**
@@ -315,6 +319,9 @@ abstract class BaseRealm implements Closeable {
             // Notify at once on thread doing the commit
             if (handler.equals(this.handler)) {
                 sendNotifications();
+                // notify RealmResults callbacks (fine-grained notifications)
+                handlerController.notifyAsyncRealmResultsCallbacks();
+                handlerController.notifySyncRealmResultsCallbacks();
                 continue;
             }
 
@@ -636,7 +643,7 @@ abstract class BaseRealm implements Closeable {
     }
 
     protected ReferenceQueue<RealmResults<? extends RealmObject>> getReferenceQueue () {
-        return handlerController.referenceQueue;
+        return handlerController.referenceQueueAsyncRealmResults;
     }
 
     // Internal delegate for migrations

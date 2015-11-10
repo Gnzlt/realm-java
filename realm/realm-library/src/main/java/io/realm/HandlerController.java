@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Future;
 
+import io.realm.internal.CanonicalIdentityMap;
 import io.realm.internal.SharedGroup;
 import io.realm.internal.async.QueryUpdateTask;
 import io.realm.internal.log.RealmLog;
@@ -47,7 +48,8 @@ public class HandlerController implements Handler.Callback {
     // pending update of async queries
     private Future updateAsyncQueriesTask;
 
-    final ReferenceQueue<RealmResults<? extends RealmObject>> referenceQueue = new ReferenceQueue<RealmResults<? extends RealmObject>>();
+    final ReferenceQueue<RealmResults<? extends RealmObject>> referenceQueueAsyncRealmResults = new ReferenceQueue<RealmResults<? extends RealmObject>>();
+    final ReferenceQueue<RealmResults<? extends RealmObject>> referenceQueueSyncRealmResults = new ReferenceQueue<RealmResults<? extends RealmObject>>();
     // keep a WeakReference list to RealmResults obtained asynchronously in order to update them
     // RealmQuery is not WeakReferenced to prevent it from being GC'd. RealmQuery should be
     // cleaned if RealmResults is cleaned. we need to keep RealmQuery because it contains the query
@@ -55,6 +57,11 @@ public class HandlerController implements Handler.Callback {
     // sorting orders, soring columns, type (findAll, findFirst, findAllSorted etc.)
     final Map<WeakReference<RealmResults<? extends RealmObject>>, RealmQuery<? extends RealmObject>> asyncRealmResults =
             new IdentityHashMap<WeakReference<RealmResults<? extends RealmObject>>, RealmQuery<? extends RealmObject>>();
+
+    // keep a reference to the list of sync RealmResults, we'll use it to deliver fine-grained notification
+    // once the shared_group advance
+    final CanonicalIdentityMap<WeakReference<RealmResults<? extends RealmObject>>> syncRealmResults =
+            new CanonicalIdentityMap<WeakReference<RealmResults<? extends RealmObject>>>();
 
     final Map<WeakReference<RealmObject>, RealmQuery<? extends RealmObject>> asyncRealmObjects =
             new IdentityHashMap<WeakReference<RealmObject>, RealmQuery<? extends RealmObject>>();
@@ -231,6 +238,8 @@ public class HandlerController implements Handler.Callback {
             // notify listeners only when we advanced
             if (compare != 0) {
                 realm.sendNotifications();
+                // notify RealmResults callbacks (fine-grained notifications)
+                notifySyncRealmResultsCallbacks();
             }
 
             updateAsyncQueriesTask = null;
@@ -285,6 +294,7 @@ public class HandlerController implements Handler.Callback {
         if (realm.sharedGroupManager != null) {
             switch (message.what) {
                 case REALM_CHANGED: {
+                    deleteWeakReferences();
                     if (threadContainsAsyncQueries()) {
                         updateAsyncQueries();
 
@@ -292,6 +302,8 @@ public class HandlerController implements Handler.Callback {
                         RealmLog.d("REALM_CHANGED realm:"+ HandlerController.this + " no async queries, advance_read");
                         realm.sharedGroupManager.advanceRead();
                         realm.sendNotifications();
+                        // notify RealmResults callbacks (fine-grained notifications)
+                        notifySyncRealmResultsCallbacks();
                     }
                     break;
                 }
@@ -326,7 +338,6 @@ public class HandlerController implements Handler.Callback {
      * @return {@code true} if there is at least one (non GC'd) instance of {@link RealmResults} {@code false} otherwise
      */
     private boolean threadContainsAsyncQueries () {
-        deleteWeakReferences();
         boolean isEmpty = true;
         Iterator<Map.Entry<WeakReference<RealmResults<? extends RealmObject>>, RealmQuery<?>>> iterator = asyncRealmResults.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -347,12 +358,49 @@ public class HandlerController implements Handler.Callback {
         // From the AOSP FinalizationTest:
         // https://android.googlesource.com/platform/libcore/+/master/support/src/test/java/libcore/
         // java/lang/ref/FinalizationTester.java
-        // System.gc() does not garbage collect every time. Runtime.gc() is
-        // more likely to perform a gc.
+        // System.gc() does not garbage collect every time. Runtime.gc() is more likely to perform a gc.
         Runtime.getRuntime().gc();
         Reference<? extends RealmResults<? extends RealmObject>> weakReference;
-        while ((weakReference = referenceQueue.poll()) != null ) { // Does not wait for a reference to become available.
+        while ((weakReference = referenceQueueAsyncRealmResults.poll()) != null ) { // Does not wait for a reference to become available.
             asyncRealmResults.remove(weakReference);
+        }
+        while ((weakReference = referenceQueueSyncRealmResults.poll()) != null ) {
+            syncRealmResults.remove(weakReference);
+        }
+    }
+
+//    void notifyRealmResultsCallbacks() {
+//        Iterator<WeakReference<RealmResults<? extends RealmObject>>> iterator = syncRealmResults.keySet().iterator();
+//        while (iterator.hasNext()) {
+//            WeakReference<RealmResults<? extends RealmObject>> weakRealmResults = iterator.next();
+//            RealmResults<? extends RealmObject> realmResults = weakRealmResults.get();
+//            if (realmResults == null) {
+//                iterator.remove();
+//
+//            } else {
+//                realmResults.notifyChangeListeners();
+//            }
+//        }
+//    }
+//
+    void notifyAsyncRealmResultsCallbacks() {
+        notifyRealmResults(asyncRealmResults.keySet().iterator());
+    }
+
+    void notifySyncRealmResultsCallbacks() {
+        notifyRealmResults(syncRealmResults.keySet().iterator());
+    }
+
+    private void  notifyRealmResults(Iterator<WeakReference<RealmResults<? extends RealmObject>>> iterator) {
+        while (iterator.hasNext()) {
+            WeakReference<RealmResults<? extends RealmObject>> weakRealmResults = iterator.next();
+            RealmResults<? extends RealmObject> realmResults = weakRealmResults.get();
+            if (realmResults == null) {
+                iterator.remove();
+
+            } else {
+                realmResults.notifyChangeListeners();
+            }
         }
     }
 }

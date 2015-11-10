@@ -31,4 +31,9 @@ public class NativeObjectReference extends PhantomReference<NativeObject> {
         super(referent, referenceQueue);
         nativePointer = referent.nativePointer;
     }
+
+    @Override
+    public void clear() {
+        super.clear();
+    }
 }

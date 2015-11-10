@@ -32,6 +32,7 @@ import java.util.Random;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.realm.entities.AllTypes;
@@ -2396,4 +2397,13 @@ public class RealmAsyncQueryTests extends InstrumentationTestCase {
         }
     }
 
+
+    public void testAlloc () throws InterruptedException {
+        Integer sum = 0;
+        for (int i = 0; i < 100; i++) {
+            sum += i;
+        }
+
+        TimeUnit.SECONDS.sleep(30);
+    }
 }

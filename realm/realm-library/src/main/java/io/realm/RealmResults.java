@@ -17,6 +17,7 @@
 package io.realm;
 
 
+import java.lang.ref.WeakReference;
 import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -90,6 +91,10 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
     RealmResults(Realm realm, TableOrView table, Class<E> classSpec) {
         this(realm, classSpec);
         this.table = table;
+        this.currentTableViewVersion = table.sync();
+        WeakReference<RealmResults<? extends RealmObject>> realmResultsWeakReference
+                = new WeakReference<RealmResults<? extends RealmObject>>(this, realm.handlerController.referenceQueueSyncRealmResults);
+        this.realm.handlerController.syncRealmResults.put(realmResultsWeakReference);
     }
 
     Realm getRealm() {
@@ -571,12 +576,12 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
 //    }
 
     private void assertRealmIsStable() {
-        long version = table.sync();
-        if (currentTableViewVersion > -1 && version != currentTableViewVersion) {
-            throw new ConcurrentModificationException("No outside changes to a Realm is allowed while iterating a RealmResults. Use iterators methods instead.");
-        }
-
-        currentTableViewVersion = version;
+//        long version = table.sync();
+//        if (currentTableViewVersion > -1 && version != currentTableViewVersion) {
+//            throw new ConcurrentModificationException("No outside changes to a Realm is allowed while iterating a RealmResults. Use iterators methods instead.");
+//        }
+//
+//        currentTableViewVersion = version;
     }
 
     // Custom RealmResults iterator. It ensures that we only iterate on a Realm that hasn't changed.
@@ -585,7 +590,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
         int pos = -1;
 
         RealmResultsIterator() {
-            currentTableViewVersion = table.sync();
+//            currentTableViewVersion = table.sync();
         }
 
         public boolean hasNext() {
@@ -690,7 +695,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
      * mostly called when updating the RealmResults from a worker thread.
      * @param handoverTableViewPointer handover pointer to the new table_view
      */
-    void swapTableViewPointer (long handoverTableViewPointer) {
+    void swapTableViewPointer(long handoverTableViewPointer) {
         table = query.importHandoverTableView(handoverTableViewPointer, realm.sharedGroupManager.getNativePointer());
         isCompleted = true;
     }
@@ -701,7 +706,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
      * RealmResults is a sync or async one.
      * @param pendingQuery pending query
      */
-    void setPendingQuery (Future<Long> pendingQuery) {
+    void setPendingQuery(Future<Long> pendingQuery) {
         this.pendingQuery = pendingQuery;
         if (isLoaded()) {
             // the query completed before RealmQuery
@@ -721,7 +726,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
      * @return {@code true} if the query has completed and the data is available {@code false} if the
      *         query is still running
      */
-    public boolean isLoaded () {
+    public boolean isLoaded() {
         if (realm == null) {
             return true;
         }
@@ -812,9 +817,25 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
      * Notify all registered listeners.
      */
     void notifyChangeListeners() {
-        realm.checkIfValid();
-        for (RealmChangeListener listener : listeners) {
-            listener.onChange();
+        // table might be null (if the async query didn't complete
+        // but we have already registered listeners for it)
+        if (pendingQuery != null && !isCompleted) return;
+
+        long version = table.sync();
+        if (currentTableViewVersion != version) {
+            currentTableViewVersion = version;
+            for (RealmChangeListener listener : listeners) {
+                listener.onChange();
+            }
         }
     }
+
+    // notifyChangeListeners will be called for both sync & async regardeless if they
+    // have listener or not (so we can update the version)
+    // we need to keep an IdentityHashMap of WeakRef<RR> of sync RR if we want  to add
+    // all sync RR (even if they don't have a listener (most of the case - not sure with the fine
+    // grained notif) or if we want to only add RR where we add a listener we need to keep another DS
+    // to allow use to know if a particular instnace hash is already in the HashMap or note
+    // which add more overhead compared to add a WeakRef into IdentityMap (storing ref) cheaper than duplicating everythings
+
 }
