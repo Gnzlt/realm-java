@@ -17,7 +17,13 @@
 package io.realm;
 
 /**
- * Using RealmChangeListener, it is possible to be notified when a Realm instance has been updated.
+ * RealmChangeListener could be registered with a {@link Realm}, {@link RealmResults} or {@link RealmObject}
+ * to receive a notification about updates.
+ * <p>
+ * When registered against a {@code Realm} you'll get notified when a Realm instance has been updated.
+ * When registered against a {@code RealmResults} or {@code RealmObject} you'll get notified only when the
+ * corresponding {@code RealmResults} or {@link RealmObject} has changed.
+ *
  * <p>
  * Realm instances on a thread without an {@link android.os.Looper} (almost all background threads) don't get updated
  * automatically, but have to call {@link Realm#refresh()} manually. This will in turn trigger the RealmChangeListener
