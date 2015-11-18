@@ -70,12 +70,16 @@ abstract class BaseRealm implements Closeable {
     // Map between a Handler and the canonical path to a Realm file
     protected static final Map<Handler, String> handlers = new ConcurrentHashMap<Handler, String>();
 
-    // thread pool for all async operations (Query & transaction)
+    // Thread pool for all async operations (Query & transaction)
     static final RealmThreadPoolExecutor asyncQueryExecutor = RealmThreadPoolExecutor.getInstance();
 
-    protected final Set<RealmChangeListener> changeListeners =
-            new CopyOnWriteArraySet<RealmChangeListener>();
+    // Keep a strong reference to the registered RealmChangeListener
+    // user should unregister those listeners
+    protected final CopyOnWriteArrayList<RealmChangeListener> changeListeners =
+            new CopyOnWriteArrayList<RealmChangeListener>();
 
+    // Keep a weak reference to the registered RealmChangeListener those are Weak since
+    // for some UC (ex: RealmBaseAdapter) we don't know when it's the best time to unregister the listener
     protected final List<WeakReference<RealmChangeListener>> weakChangeListeners =
             new CopyOnWriteArrayList<WeakReference<RealmChangeListener>>();
 
@@ -157,9 +161,16 @@ abstract class BaseRealm implements Closeable {
      */
     public void addChangeListener(RealmChangeListener listener) {
         checkIfValid();
-        changeListeners.add(listener);
+        changeListeners.addIfAbsent(listener);
     }
 
+    /**
+     * For internal use only.
+     * Sometimes we don't know when to unregister listeners (ex: {@link RealmBaseAdapter}), using
+     * a WeakReference the listener.
+     *
+     * @param listener the change listener.
+     */
     void addChangeListenerAsWeakReference(RealmChangeListener listener) {
         for (WeakReference<RealmChangeListener> ref : weakChangeListeners) {
             if (ref.get() == listener) {
@@ -211,15 +222,16 @@ abstract class BaseRealm implements Closeable {
 
     protected void sendNotifications() {
         // notify strong reference listener
-        for (Iterator<RealmChangeListener> iterator = changeListeners.iterator(); iterator.hasNext(); ) {
-            RealmChangeListener listener = iterator.next();
+        Iterator<RealmChangeListener> iteratorStrongListeners = changeListeners.iterator();
+        while (iteratorStrongListeners.hasNext()) {
+            RealmChangeListener listener = iteratorStrongListeners.next();
             listener.onChange();
         }
         // notify weak reference listener (internals)
-        Iterator<WeakReference<RealmChangeListener>> iterator = weakChangeListeners.iterator();
+        Iterator<WeakReference<RealmChangeListener>> iteratorWeakListeners = weakChangeListeners.iterator();
         List<WeakReference<RealmChangeListener>> toRemoveList = null;
-        while (iterator.hasNext()) {
-            WeakReference<RealmChangeListener> weakRef = iterator.next();
+        while (iteratorWeakListeners.hasNext()) {
+            WeakReference<RealmChangeListener> weakRef = iteratorWeakListeners.next();
             RealmChangeListener listener = weakRef.get();
             if (listener == null) {
                 if (toRemoveList == null) {
