@@ -37,10 +37,8 @@ import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import io.realm.entities.AllJavaTypes;
 import io.realm.entities.AllTypes;
 import io.realm.entities.Dog;
-import io.realm.entities.Owner;
 import io.realm.internal.log.Logger;
 import io.realm.internal.log.RealmLog;
 
@@ -476,7 +474,7 @@ public class NotificationsTest extends AndroidTestCase {
                 counter.incrementAndGet();
             }
         };
-        realm.addChangeListener(listener);
+        realm.addChangeListenerAsWeakReference(listener);
 
         // There is no guaranteed way to release the WeakReference,
         // just clear it.
@@ -610,265 +608,93 @@ public class NotificationsTest extends AndroidTestCase {
         RealmLog.remove(logger);
     }
 
-    public void testSyncFineGrainedNotification() throws InterruptedException {
-        final AtomicInteger fineGrainedCallbackInvocations = new AtomicInteger(0);
-        final AtomicInteger globalCallbackInvocations = new AtomicInteger(0);
-        final CountDownLatch signalTestFinished = new CountDownLatch(1);
-        HandlerThread handlerThread = new HandlerThread("backgroundThread");
+    public void testHandlerThreadShouldReceiveNotification() throws ExecutionException, InterruptedException {
+        final AssertionFailedError[] assertionFailedErrors = new AssertionFailedError[1];
+        final CountDownLatch backgroundThreadReady = new CountDownLatch(1);
+        final CountDownLatch numberOfInvocation = new CountDownLatch(1);
+
+        HandlerThread handlerThread = new HandlerThread("handlerThread");
         handlerThread.start();
         Handler handler = new Handler(handlerThread.getLooper());
         handler.post(new Runnable() {
             @Override
             public void run() {
-                final RealmChangeListener fineGrainedListener = new RealmChangeListener() {
+                try {
+                    assertEquals("handlerThread", Thread.currentThread().getName());
+                } catch (AssertionFailedError e) {
+                    assertionFailedErrors[0] = e;
+                }
+                final Realm backgroundRealm = Realm.getInstance(getContext());
+                backgroundRealm.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
-                        fineGrainedCallbackInvocations.incrementAndGet();
+                        backgroundRealm.close();
+                        numberOfInvocation.countDown();
                     }
-                };
-                final RealmChangeListener generalListener = new RealmChangeListener() {
+                });
+                backgroundThreadReady.countDown();
+            }
+        });
+        awaitOrThrow(backgroundThreadReady);
+        // At this point the background thread started & registered the listener
+
+        Realm realm = Realm.getInstance(getContext());
+        realm.beginTransaction();
+        realm.createObject(AllTypes.class);
+        realm.commitTransaction();
+
+        awaitOrThrow(numberOfInvocation);
+        realm.close();
+        handlerThread.quit();
+        if (assertionFailedErrors[0] != null) {
+            throw assertionFailedErrors[0];
+        }
+    }
+
+    public void testNonLooperThreadShouldNotifyLooperThreadAboutCommit() throws Throwable {
+        final Throwable[] backgroundErrors = new Throwable[1];
+        final CountDownLatch mainThreadReady = new CountDownLatch(1);
+        final CountDownLatch numberOfInvocation = new CountDownLatch(1);
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    mainThreadReady.await();
+                    Realm realm = Realm.getInstance(getContext());
+                    realm.beginTransaction();
+                    realm.createObject(AllTypes.class);
+                    realm.commitTransaction();
+                    realm.close();
+                } catch (InterruptedException e) {
+                    backgroundErrors[0] = e;
+                }
+            }
+        };
+        thread.start();
+
+        HandlerThread mainThread = new HandlerThread("mainThread");
+        mainThread.start();
+        Handler handler = new Handler(mainThread.getLooper());
+        handler.post(new Runnable() {
+            @Override
+            public void run() {
+                final Realm mainRealm = Realm.getInstance(getContext());
+                mainRealm.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
-                        globalCallbackInvocations.incrementAndGet();
+                        mainRealm.close();
+                        numberOfInvocation.countDown();
                     }
-                };
-
-                Realm realm = Realm.getInstance(getContext());
-                realm.addChangeListener(generalListener);
-
-                realm.beginTransaction();
-                Dog dog = realm.createObject(Dog.class);
-                Owner owner = realm.createObject(Owner.class);
-                dog.setOwner(owner);
-                realm.commitTransaction();
-
-                RealmResults<Dog> dogs = realm.where(Dog.class).findAll();
-                dogs.addChangeListener(fineGrainedListener);
-
-                realm.beginTransaction();
-                dog.setName("Akamaru");
-                realm.commitTransaction();
-
-                realm.beginTransaction();
-                owner.setName("kiba");
-                realm.commitTransaction();
-
-                realm.beginTransaction();
-                realm.commitTransaction();
-
-                realm.beginTransaction();
-                realm.createObject(AllJavaTypes.class);
-                realm.commitTransaction();
-
-                realm.close();
-                signalTestFinished.countDown();
+                });
+                mainThreadReady.countDown();
             }
         });
 
-        awaitOrThrow(signalTestFinished);
-        assertEquals(2, fineGrainedCallbackInvocations.get());
-        assertEquals(5, globalCallbackInvocations.get());
-        handlerThread.quit();
-    }
-
-
-    // TODO same Thread fine-grained notif for sync & async
-    // TODO second commit will advance UI thread making the resulted query re-run --> control behaviour
-    // using number of global commit
-    // TODO test what happen when you call refresh then access no updated yet async query (it should re-run)
-    // maybe document this behaviour
-
-    public void testAsyncFineGrainedNotifications() throws InterruptedException {
-        final CountDownLatch signalTestFinished = new CountDownLatch(2);
-        final Realm[] realms = new Realm[1];
-        final RealmChangeListener listener = new RealmChangeListener() {
-            @Override
-            public void onChange() {
-                if (signalTestFinished.getCount() == 1) {
-                    realms[0].close();
-                }
-                signalTestFinished.countDown();
-
-            }
-        };
-
-        HandlerThread handlerThread = new HandlerThread("backgroundThread");
-        handlerThread.start();
-        final Handler handler = new Handler(handlerThread.getLooper());
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-
-                realms[0] = Realm.getInstance(getContext());
-                realms[0].beginTransaction();
-                final Dog dog = realms[0].createObject(Dog.class);
-                final Owner owner = realms[0].createObject(Owner.class);
-                dog.setOwner(owner);
-                realms[0].commitTransaction();
-
-                RealmResults<Dog> dogs = realms[0].where(Dog.class).findAllAsync();
-                dogs.addChangeListener(listener);
-
-                realms[0].beginTransaction();
-                dog.setName("Akamaru");
-                realms[0].commitTransaction();
-            }
-        });
-
-//        awaitOrThrow(signalTestFinished);
-        signalTestFinished.await();
-        handlerThread.quit();
-    }
-
-    public void testAsyncFineGrainedNotificationsShouldNotTrigger() throws InterruptedException {
-        final CountDownLatch signalTestFinished = new CountDownLatch(1);
-        final AtomicInteger globalCommitInvocations = new AtomicInteger(0);
-        final Realm[] realms = new Realm[1];
-        HandlerThread handlerThread = new HandlerThread("backgroundThread");
-        handlerThread.start();
-        final Handler handler = new Handler(handlerThread.getLooper());
-        final RealmChangeListener globalRealmListener = new RealmChangeListener() {
-            @Override
-            public void onChange() {
-                switch (globalCommitInvocations.incrementAndGet()) {
-                    case 1: {// commit # 1
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                realms[0].beginTransaction();
-                                realms[0].createObject(AllJavaTypes.class);
-                                realms[0].commitTransaction();
-                            }
-                        });
-                      break;
-                    }
-                    case 2: {// commit # 2
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                realms[0].beginTransaction();
-                                realms[0].commitTransaction();
-                            }
-                        });
-                        break;
-                    }
-                    case 3: {// commit # 3 lat one finish test
-                        realms[0].close();
-                        signalTestFinished.countDown();
-                        break;
-                    }
-
-                }
-            }
-        };
-
-        final AtomicInteger callbackInvocations = new AtomicInteger(0);
-        final RealmChangeListener listener = new RealmChangeListener() {
-            @Override
-            public void onChange() {
-                callbackInvocations.incrementAndGet();
-            }
-        };
-
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                realms[0] = Realm.getInstance(getContext());
-                realms[0].addChangeListener(globalRealmListener);
-                realms[0].beginTransaction();
-                final Dog dog = realms[0].createObject(Dog.class);
-                final Owner owner = realms[0].createObject(Owner.class);
-                dog.setOwner(owner);
-                realms[0].commitTransaction();
-
-                RealmResults<Dog> dogs = realms[0].where(Dog.class).findAllAsync();
-                assertTrue(dogs.load());
-
-                dogs.addChangeListener(listener);
-            }
-        });
-
-        awaitOrThrow(signalTestFinished);
-        assertEquals(0, callbackInvocations.get());
-        handlerThread.quit();
-    }
-
-    public void testAsyncFineGrainedNotificationsOnEmptyResult() throws InterruptedException {
-        final CountDownLatch signalTestFinished = new CountDownLatch(1);
-        final AtomicInteger globalCommitInvocations = new AtomicInteger(0);
-        final Realm[] realms = new Realm[1];
-        HandlerThread handlerThread = new HandlerThread("backgroundThread");
-        handlerThread.start();
-        final Handler handler = new Handler(handlerThread.getLooper());
-        final RealmChangeListener globalRealmListener = new RealmChangeListener() {
-            @Override
-            public void onChange() {
-                switch (globalCommitInvocations.incrementAndGet()) {
-                    case 1: {// commit # 1
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                realms[0].beginTransaction();
-                                realms[0].createObject(AllJavaTypes.class);
-                                realms[0].commitTransaction();
-                            }
-                        });
-                        break;
-                    }
-                    case 2: {// commit # 2
-                        handler.post(new Runnable() {
-                            @Override
-                            public void run() {
-                                realms[0].beginTransaction();
-                                realms[0].commitTransaction();
-                            }
-                        });
-                        break;
-                    }
-                    case 3: {// commit # 3 lat one finish test
-                        realms[0].close();
-                        signalTestFinished.countDown();
-                        break;
-                    }
-                }
-            }
-        };
-
-        final AtomicInteger callbackInvocations = new AtomicInteger(0);
-        final RealmResults<Dog>[] dogs = new RealmResults[1];
-        final RealmChangeListener listener = new RealmChangeListener() {
-            @Override
-            public void onChange() {
-                callbackInvocations.incrementAndGet();
-                assertTrue(dogs[0].isLoaded());
-                assertEquals(1, dogs[0].size());
-                assertEquals("Akamaru", dogs[0].get(0).getName());
-            }
-        };
-
-        handler.post(new Runnable() {
-            @Override
-            public void run() {
-                realms[0] = Realm.getInstance(getContext());
-
-                dogs[0] = realms[0].where(Dog.class).findAllAsync();
-                assertTrue(dogs[0].load());
-                dogs[0] .addChangeListener(listener);
-
-                realms[0].addChangeListener(globalRealmListener);
-
-                realms[0].beginTransaction();
-                final Dog dog = realms[0].createObject(Dog.class);
-                dog.setName("Akamaru");
-                final Owner owner = realms[0].createObject(Owner.class);
-                dog.setOwner(owner);
-                realms[0].commitTransaction();
-            }
-        });
-
-        awaitOrThrow(signalTestFinished);
-        assertEquals(1, callbackInvocations.get());
-        handlerThread.quit();
+        awaitOrThrow(numberOfInvocation);
+        mainThread.quit();
+        if (backgroundErrors[0] != null) {
+            throw backgroundErrors[0];
+        }
     }
 
     private void awaitOrThrow(CountDownLatch latch) {
