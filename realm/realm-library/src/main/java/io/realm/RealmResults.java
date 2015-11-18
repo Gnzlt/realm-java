@@ -576,6 +576,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
 //    }
 
     private void assertRealmIsStable() {
+        //TODO use a currentTableViewVersion internal to the class RealmResultsIterator
 //        long version = table.sync();
 //        if (currentTableViewVersion > -1 && version != currentTableViewVersion) {
 //            throw new ConcurrentModificationException("No outside changes to a Realm is allowed while iterating a RealmResults. Use iterators methods instead.");

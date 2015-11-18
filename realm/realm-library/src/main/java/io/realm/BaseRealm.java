@@ -22,7 +22,6 @@ import android.os.Looper;
 
 import java.io.Closeable;
 import java.io.File;
-import java.lang.ref.ReferenceQueue;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -282,6 +281,7 @@ abstract class BaseRealm implements Closeable {
         // notify RealmResults callbacks (fine-grained notifications)
         handlerController.notifyAsyncRealmResultsCallbacks();
         handlerController.notifySyncRealmResultsCallbacks();
+        handlerController.notifyRealmObjectCallbacks();
 
     }
 
@@ -322,6 +322,7 @@ abstract class BaseRealm implements Closeable {
                 // notify RealmResults callbacks (fine-grained notifications)
                 handlerController.notifyAsyncRealmResultsCallbacks();
                 handlerController.notifySyncRealmResultsCallbacks();
+                handlerController.notifyRealmObjectCallbacks();
                 continue;
             }
 
@@ -630,20 +631,6 @@ abstract class BaseRealm implements Closeable {
                 callback.migrationComplete();
             }
         }
-    }
-
-    protected void addAsyncRealmResults (WeakReference<RealmResults<? extends RealmObject>> weakRealmResults,
-                                         RealmQuery<? extends RealmObject> realmQuery) {
-        handlerController.asyncRealmResults.put(weakRealmResults, realmQuery);
-    }
-
-    protected void addAsyncRealmObject (WeakReference<RealmObject> realmObjectWeakReference,
-                                         RealmQuery<? extends RealmObject> realmQuery) {
-        handlerController.asyncRealmObjects.put(realmObjectWeakReference, realmQuery);
-    }
-
-    protected ReferenceQueue<RealmResults<? extends RealmObject>> getReferenceQueue () {
-        return handlerController.referenceQueueAsyncRealmResults;
     }
 
     // Internal delegate for migrations

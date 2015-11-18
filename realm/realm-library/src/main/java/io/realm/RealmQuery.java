@@ -1490,8 +1490,9 @@ public class RealmQuery<E extends RealmObject> {
         // prepare an empty reference of the RealmResults, so we can return it immediately (promise)
         // then update it once the query completes in the background.
         RealmResults<E> realmResults = new RealmResults<E>(realm, query, clazz);
-        final WeakReference<RealmResults<?>> weakRealmResults = new WeakReference<RealmResults<?>>(realmResults, realm.getReferenceQueue());
-        realm.addAsyncRealmResults(weakRealmResults, this);
+        final WeakReference<RealmResults<?>> weakRealmResults = new WeakReference<RealmResults<?>>(realmResults,
+                realm.handlerController.referenceQueueAsyncRealmResults);
+        realm.handlerController.asyncRealmResults.put(weakRealmResults, this);
 
         final Future<Long> pendingQuery = Realm.asyncQueryExecutor.submit(new Callable<Long>() {
             @Override
@@ -1578,8 +1579,9 @@ public class RealmQuery<E extends RealmObject> {
         // prepare an empty reference of the RealmResults, so we can return it immediately (promise)
         // then update it once the query completes in the background.
         RealmResults<E> realmResults = new RealmResults<E>(realm, query, clazz);
-        final WeakReference<RealmResults<?>> weakRealmResults = new WeakReference<RealmResults<?>>(realmResults, realm.getReferenceQueue());
-        realm.addAsyncRealmResults(weakRealmResults, this);
+        final WeakReference<RealmResults<?>> weakRealmResults = new WeakReference<RealmResults<?>>(realmResults,
+                realm.handlerController.referenceQueueAsyncRealmResults);
+        realm.handlerController.asyncRealmResults.put(weakRealmResults, this);
 
         final Future<Long> pendingQuery = Realm.asyncQueryExecutor.submit(new Callable<Long>() {
             @Override
@@ -1682,8 +1684,9 @@ public class RealmQuery<E extends RealmObject> {
         final RealmConfiguration realmConfiguration = realm.getConfiguration();
 
         RealmResults<E> realmResults = new RealmResults<E>(realm, query, clazz);
-        final WeakReference<RealmResults<?>> weakRealmResults = new WeakReference<RealmResults<?>>(realmResults, realm.getReferenceQueue());
-        realm.addAsyncRealmResults(weakRealmResults, this);
+        final WeakReference<RealmResults<?>> weakRealmResults = new WeakReference<RealmResults<?>>(realmResults,
+                realm.handlerController.referenceQueueAsyncRealmResults);
+        realm.handlerController.asyncRealmResults.put(weakRealmResults, this);
 
         final Future<Long> pendingQuery = Realm.asyncQueryExecutor.submit(new Callable<Long>() {
             @Override
@@ -1838,8 +1841,9 @@ public class RealmQuery<E extends RealmObject> {
 
             // prepare the promise result
             RealmResults<E> realmResults = new RealmResults<E>(realm, query, clazz);
-            final WeakReference<RealmResults<?>> weakRealmResults = new WeakReference<RealmResults<?>>(realmResults, realm.getReferenceQueue());
-            realm.addAsyncRealmResults(weakRealmResults, this);
+            final WeakReference<RealmResults<?>> weakRealmResults = new WeakReference<RealmResults<?>>(realmResults,
+                    realm.handlerController.referenceQueueAsyncRealmResults);
+            realm.handlerController.asyncRealmResults.put(weakRealmResults, this);
 
             final Future<Long> pendingQuery = Realm.asyncQueryExecutor.submit(new Callable<Long>() {
                 @Override
@@ -1971,7 +1975,11 @@ public class RealmQuery<E extends RealmObject> {
         checkQueryIsNotReused();
         long rowIndex = this.query.find();
         if (rowIndex >= 0) {
-            return realm.get(clazz, (view != null) ? view.getTargetRowIndex(rowIndex) : rowIndex);
+            E realmObject = realm.get(clazz, (view != null) ? view.getTargetRowIndex(rowIndex) : rowIndex);
+            WeakReference<RealmObject> realmObjectWeakReference
+                    = new WeakReference<RealmObject>(realmObject, realm.handlerController.referenceQueueRealmObject);
+            realm.handlerController.realmObjects.put(realmObjectWeakReference, this);
+            return realmObject;
         } else {
             return null;
         }
@@ -1999,8 +2007,8 @@ public class RealmQuery<E extends RealmObject> {
         // prepare an empty reference of the RealmObject, so we can return it immediately (promise)
         // then update it once the query complete in the background.
         final E result = realm.getConfiguration().getSchemaMediator().newInstance(clazz, realm.getColumnInfo(clazz));
-        final WeakReference<RealmObject> realmObjectWeakReference = new WeakReference<RealmObject>(result);
-        realm.addAsyncRealmObject(realmObjectWeakReference, this);
+        final WeakReference<RealmObject> realmObjectWeakReference = new WeakReference<RealmObject>(result, realm.handlerController.referenceQueueRealmObject);
+        realm.handlerController.realmObjects.put(realmObjectWeakReference, this);
         result.realm = realm;
         result.row = Row.EMPTY_ROW;
 

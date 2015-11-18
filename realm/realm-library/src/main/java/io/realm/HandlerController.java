@@ -50,6 +50,7 @@ public class HandlerController implements Handler.Callback {
 
     final ReferenceQueue<RealmResults<? extends RealmObject>> referenceQueueAsyncRealmResults = new ReferenceQueue<RealmResults<? extends RealmObject>>();
     final ReferenceQueue<RealmResults<? extends RealmObject>> referenceQueueSyncRealmResults = new ReferenceQueue<RealmResults<? extends RealmObject>>();
+    final ReferenceQueue<RealmObject> referenceQueueRealmObject = new ReferenceQueue<RealmObject>();
     // keep a WeakReference list to RealmResults obtained asynchronously in order to update them
     // RealmQuery is not WeakReferenced to prevent it from being GC'd. RealmQuery should be
     // cleaned if RealmResults is cleaned. we need to keep RealmQuery because it contains the query
@@ -58,12 +59,12 @@ public class HandlerController implements Handler.Callback {
     final Map<WeakReference<RealmResults<? extends RealmObject>>, RealmQuery<? extends RealmObject>> asyncRealmResults =
             new IdentityHashMap<WeakReference<RealmResults<? extends RealmObject>>, RealmQuery<? extends RealmObject>>();
 
-    // keep a reference to the list of sync RealmResults, we'll use it to deliver fine-grained notification
-    // once the shared_group advance
+    // keep a reference to the list of sync RealmResults & RealmObject, we'll use it
+    // to deliver fine-grained notification once the shared_group advance
     final CanonicalIdentityMap<WeakReference<RealmResults<? extends RealmObject>>> syncRealmResults =
             new CanonicalIdentityMap<WeakReference<RealmResults<? extends RealmObject>>>();
 
-    final Map<WeakReference<RealmObject>, RealmQuery<? extends RealmObject>> asyncRealmObjects =
+    final Map<WeakReference<RealmObject>, RealmQuery<? extends RealmObject>> realmObjects =
             new IdentityHashMap<WeakReference<RealmObject>, RealmQuery<? extends RealmObject>>();
 
     public HandlerController(BaseRealm realm) {
@@ -259,12 +260,11 @@ public class HandlerController implements Handler.Callback {
                 // only two use cases could happen 1. we're on the same version or 2. the caller has advanced in the meanwhile
                 if (compare == 0) { //same version import the handover
                     realmObject.onCompleted(result.updatedRow.get(realmObjectWeakReference));
-                    asyncRealmObjects.remove(realmObjectWeakReference);
 
                 } else if (compare > 0) {
                     // the caller has advanced we need to
                     // retry against the current version of the caller
-                    RealmQuery<?> realmQuery = asyncRealmObjects.get(realmObjectWeakReference);
+                    RealmQuery<?> realmQuery = realmObjects.get(realmObjectWeakReference);
 
                     QueryUpdateTask queryUpdateTask = QueryUpdateTask.newBuilder()
                             .realmConfiguration(realm.getConfiguration())
@@ -360,12 +360,16 @@ public class HandlerController implements Handler.Callback {
         // java/lang/ref/FinalizationTester.java
         // System.gc() does not garbage collect every time. Runtime.gc() is more likely to perform a gc.
         Runtime.getRuntime().gc();
-        Reference<? extends RealmResults<? extends RealmObject>> weakReference;
-        while ((weakReference = referenceQueueAsyncRealmResults.poll()) != null ) { // Does not wait for a reference to become available.
-            asyncRealmResults.remove(weakReference);
+        Reference<? extends RealmResults<? extends RealmObject>> weakReferenceResults;
+        Reference<? extends RealmObject> weakReferenceObject;
+        while ((weakReferenceResults = referenceQueueAsyncRealmResults.poll()) != null ) { // Does not wait for a reference to become available.
+            asyncRealmResults.remove(weakReferenceResults);
         }
-        while ((weakReference = referenceQueueSyncRealmResults.poll()) != null ) {
-            syncRealmResults.remove(weakReference);
+        while ((weakReferenceResults = referenceQueueSyncRealmResults.poll()) != null ) {
+            syncRealmResults.remove(weakReferenceResults);
+        }
+        while ((weakReferenceObject = referenceQueueRealmObject.poll()) != null ) {
+            realmObjects.remove(weakReferenceObject);
         }
     }
 
@@ -391,6 +395,10 @@ public class HandlerController implements Handler.Callback {
         notifyRealmResults(syncRealmResults.keySet().iterator());
     }
 
+    void notifyRealmObjectCallbacks() {
+        notifyRealmObject(realmObjects.keySet().iterator());
+    }
+
     private void  notifyRealmResults(Iterator<WeakReference<RealmResults<? extends RealmObject>>> iterator) {
         while (iterator.hasNext()) {
             WeakReference<RealmResults<? extends RealmObject>> weakRealmResults = iterator.next();
@@ -400,6 +408,19 @@ public class HandlerController implements Handler.Callback {
 
             } else {
                 realmResults.notifyChangeListeners();
+            }
+        }
+    }
+
+    private void notifyRealmObject(Iterator<WeakReference<RealmObject>> iterator) {
+        while (iterator.hasNext()) {
+            WeakReference<? extends RealmObject> weakRealmObject = iterator.next();
+            RealmObject realmObject = weakRealmObject.get();
+            if (realmObject == null) {
+                iterator.remove();
+
+            } else {
+                realmObject.notifyChangeListeners();
             }
         }
     }

@@ -21,7 +21,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 
 import io.realm.annotations.RealmClass;
-import io.realm.internal.ColumnInfo;
 import io.realm.internal.InvalidRow;
 import io.realm.internal.Row;
 import io.realm.internal.Table;
@@ -89,6 +88,7 @@ public abstract class RealmObject {
     private final List<RealmChangeListener> listeners = new CopyOnWriteArrayList<RealmChangeListener>();
     private Future<Long> pendingQuery;
     private boolean isCompleted = false;
+    private long currentTableVersion = -1; // this will be set by the ProxyClass (inside constructor)
 
     /**
      * Removes the object from the Realm it is currently associated to.
@@ -200,11 +200,13 @@ public abstract class RealmObject {
     boolean onCompleted() {
         try {
             Long handoverResult = pendingQuery.get();// make the query blocking
-            // this may fail with BadVersionException if the caller and/or the worker thread
-            // are not in sync (same shared_group version).
-            // REALM_COMPLETED_ASYNC_FIND_FIRST will be fired by the worker thread
-            // this should handle more complex use cases like retry, ignore etc
-            onCompleted(handoverResult);
+            if (handoverResult != 0) { // no row found
+                // this may fail with BadVersionException if the caller and/or the worker thread
+                // are not in sync (same shared_group version).
+                // REALM_COMPLETED_ASYNC_FIND_FIRST will be fired by the worker thread
+                // this should handle more complex use cases like retry, ignore etc
+                onCompleted(handoverResult);
+            }
         } catch (Exception e) {
             RealmLog.d(e.getMessage());
             return false;
@@ -274,9 +276,22 @@ public abstract class RealmObject {
      * Notify all registered listeners.
      */
     void notifyChangeListeners() {
-        realm.checkIfValid();
-        for (RealmChangeListener listener : listeners) {
-            listener.onChange();
+        // table might be null (if the async query didn't complete
+        // but we have already registered listeners for it)
+        if (row.getTable() == null) return;
+
+        long version = row.getTable().sync();
+        if (currentTableVersion != version) {
+            currentTableVersion = version;
+            for (RealmChangeListener listener : listeners) {
+                listener.onChange();
+            }
         }
+
+
+//        realm.checkIfValid();
+//        for (RealmChangeListener listener : listeners) {
+//            listener.onChange();
+//        }
     }
 }
