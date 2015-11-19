@@ -169,8 +169,8 @@ abstract class BaseRealm implements Closeable {
 
     /**
      * For internal use only.
-     * Sometimes we don't know when to unregister listeners (ex: {@link RealmBaseAdapter}), using
-     * a WeakReference the listener.
+     * Sometimes we don't know when to unregister listeners (ex: {@link RealmBaseAdapter}). Using
+     * a WeakReference the listener doesn't need to be explicitly unregistered.
      *
      * @param listener the change listener.
      */

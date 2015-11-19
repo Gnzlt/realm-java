@@ -17,7 +17,7 @@
 package io.realm;
 
 /**
- * RealmChangeListener could be registered with a {@link Realm}, {@link RealmResults} or {@link RealmObject}
+ * RealmChangeListener can be registered with a {@link Realm}, {@link RealmResults} or {@link RealmObject}
  * to receive a notification about updates.
  * <p>
  * When registered against a {@code Realm} you'll get notified when a Realm instance has been updated.
