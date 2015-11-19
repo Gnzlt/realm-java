@@ -1,21 +1,29 @@
+/*
+ * Copyright 2015 Realm Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.realm;
 
 import android.os.Handler;
 import android.os.HandlerThread;
-import android.os.Looper;
-import android.os.MessageQueue;
-import android.os.SystemClock;
 import android.test.AndroidTestCase;
-import android.test.InstrumentationTestCase;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import io.realm.entities.Dog;
 
-/**
- * Created by Nabil on 12/11/15.
- */
 public class FineGrainedNotificationsTest extends AndroidTestCase {
     private HandlerThread handlerThread;
     private Handler handler;
@@ -40,7 +48,7 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
     @Override
     protected void tearDown() throws Exception {
         final CountDownLatch cleanup = new CountDownLatch(1);
-        if (realm != null) {
+        if (realm != null && handler.getLooper().getThread().isAlive()) {
             handler.post(new Runnable() {
                 @Override
                 public void run() {
@@ -53,8 +61,8 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
                     cleanup.countDown();
                 }
             });
+            TestHelper.awaitOrFail(cleanup);
         }
-        TestHelper.awaitOrFail(cleanup);
     }
 
     // ********************************************************************************* //
@@ -64,36 +72,36 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
     // ********************************************************************************* //
 
     // UC 1 for Sync RealmObject
-    public void test_callback_with_relevant_commit_realmobject_sync () {
+    public void test_callback_with_relevant_commit_realmobject_sync() {
         handler.post(new Runnable() {
             @Override
             public void run() {
                 realm = Realm.getInstance(configuration);
-                RealmChangeListener listener = new RealmChangeListener() {
+                realm.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
                         if (globalCommitInvocations.incrementAndGet() == 3)  {
                             signalTestFinished.countDown();
                         }
                     }
-                };
-
-                RealmChangeListener listenerFineGrained = new RealmChangeListener() {
-                    @Override
-                    public void onChange() {
-                        fineGrainedCommitInvocations.incrementAndGet();
-                    }
-                };
-                realm.addChangeListener(listener);
+                });
 
                 realm.beginTransaction();
                 Dog akamaru = realm.createObject(Dog.class);
                 akamaru.setName("Akamaru");
                 realm.commitTransaction();
 
-                Dog dog = realm.where(Dog.class).findFirst();
-                dog.addChangeListener(listenerFineGrained);
+                final Dog dog = realm.where(Dog.class).findFirst();
+                dog.addChangeListener(new RealmChangeListener() {
+                    @Override
+                    public void onChange() {
+                        assertEquals("Akamaru", dog.getName());
+                        fineGrainedCommitInvocations.incrementAndGet();
+                    }
+                });
 
+                // this commit should not trigger the fine-grained callback
+                // it will re-run the query in the background though
                 realm.beginTransaction();
                 realm.commitTransaction();
 
@@ -106,32 +114,29 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
         assertEquals(1, fineGrainedCommitInvocations.get());
     }
     // UC 1 Async RealmObject
-    public void test_callback_with_relevant_commit_realmobject_async () {
+    public void test_callback_with_relevant_commit_realmobject_async() {
         handler.post(new Runnable() {
             @Override
             public void run() {
                 realm = Realm.getInstance(configuration);
-                RealmChangeListener listener = new RealmChangeListener() {
+                realm.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
-                        if (globalCommitInvocations.incrementAndGet() == 3)  {
+                        if (globalCommitInvocations.incrementAndGet() == 3) {
                             signalTestFinished.countDown();
                         }
                     }
-                };
+                });
 
-                RealmChangeListener listenerFineGrained = new RealmChangeListener() {
+                final Dog dog = realm.where(Dog.class).findFirstAsync();
+                assertTrue(dog.load());
+                dog.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
+                        assertEquals("Akamaru", dog.getName());
                         fineGrainedCommitInvocations.incrementAndGet();
                     }
-                };
-                realm.addChangeListener(listener);
-
-
-                Dog dog = realm.where(Dog.class).findFirstAsync();
-                assertTrue(dog.load());
-                dog.addChangeListener(listenerFineGrained);
+                });
 
                 realm.beginTransaction();
                 realm.commitTransaction();
@@ -151,35 +156,34 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
         assertEquals(2, fineGrainedCommitInvocations.get());
     }
     // UC 1 Sync RealmResults
-    public void test_callback_with_relevant_commit_realmresults_sync () {
+    public void test_callback_with_relevant_commit_realmresults_sync() {
         handler.post(new Runnable() {
             @Override
             public void run() {
                 realm = Realm.getInstance(configuration);
-                RealmChangeListener listener = new RealmChangeListener() {
+                realm.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
                         if (globalCommitInvocations.incrementAndGet() == 3)  {
                             signalTestFinished.countDown();
                         }
                     }
-                };
-
-                RealmChangeListener listenerFineGrained = new RealmChangeListener() {
-                    @Override
-                    public void onChange() {
-                        fineGrainedCommitInvocations.incrementAndGet();
-                    }
-                };
-                realm.addChangeListener(listener);
+                });
 
                 realm.beginTransaction();
                 Dog akamaru = realm.createObject(Dog.class);
                 akamaru.setName("Akamaru");
                 realm.commitTransaction();
 
-                RealmResults<Dog> dogs = realm.where(Dog.class).findAll();
-                dogs.addChangeListener(listenerFineGrained);
+                final RealmResults<Dog> dogs = realm.where(Dog.class).findAll();
+                dogs.addChangeListener(new RealmChangeListener() {
+                    @Override
+                    public void onChange() {
+                        assertEquals(1, dogs.size());
+                        assertEquals("Akamaru", dogs.get(0).getName());
+                        fineGrainedCommitInvocations.incrementAndGet();
+                    }
+                });
 
                 realm.beginTransaction();
                 realm.commitTransaction();
@@ -193,32 +197,30 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
         assertEquals(1, fineGrainedCommitInvocations.get());
     }
     // UC 1 Async RealmResults
-    public void test_callback_with_relevant_commit_realmresults_async () {
+    public void test_callback_with_relevant_commit_realmresults_async() {
         handler.post(new Runnable() {
             @Override
             public void run() {
                 realm = Realm.getInstance(configuration);
-                RealmChangeListener listener = new RealmChangeListener() {
+                realm.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
                         if (globalCommitInvocations.incrementAndGet() == 3)  {
                             signalTestFinished.countDown();
                         }
                     }
-                };
+                });
 
-                RealmChangeListener listenerFineGrained = new RealmChangeListener() {
+                final RealmResults<Dog> dogs = realm.where(Dog.class).findAllAsync();
+                assertTrue(dogs.load());
+                dogs.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
+                        assertEquals(1, dogs.size());
+                        assertEquals("Akamaru", dogs.get(0).getName());
                         fineGrainedCommitInvocations.incrementAndGet();
                     }
-                };
-                realm.addChangeListener(listener);
-
-
-                RealmResults<Dog> dogs = realm.where(Dog.class).findAllAsync();
-                assertTrue(dogs.load());
-                dogs.addChangeListener(listenerFineGrained);
+                });
 
                 realm.beginTransaction();
                 realm.commitTransaction();
@@ -240,33 +242,12 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
 
     // ********************************************************************************* //
     // UC 2.
-    // Callback should not be invoked after a commit (one that should not impact the
-    // query from which we obtained our RealmObject or RealmResults)
-    // ********************************************************************************* //
-
-    // UC 2 for Sync RealmObject
-    // UC 2 Async RealmObject
-    // UC 2 Sync RealmResults
-    // UC 2 Async RealmResults
-
-
-    // ********************************************************************************* //
-    // UC 3.
     // Multiple callbacks should be invoked after a relevant commit
     // ********************************************************************************* //
 
-    // UC 3 for Sync RealmObject
-    public void test_multiple_callbacks_should_be_invoked_realmobject_sync () {
-        final RealmChangeListener[] fineGrainedCommitInvocationsCallbacks = new RealmChangeListener[7];
-        for (int i = 0; i < fineGrainedCommitInvocationsCallbacks.length; i++) {
-            fineGrainedCommitInvocationsCallbacks[i] = new RealmChangeListener() {
-                @Override
-                public void onChange() {
-                    fineGrainedCommitInvocations.incrementAndGet();
-                }
-            };
-        }
-
+    // UC 2 for Sync RealmObject
+    public void test_multiple_callbacks_should_be_invoked_realmobject_sync() {
+        final int NUMBER_OF_LISTENERS = 7;
         handler.post(new Runnable() {
             @Override
             public void run() {
@@ -288,8 +269,13 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
                 realm.commitTransaction();
 
                 Dog dog = realm.where(Dog.class).findFirst();
-                for (int i = 0; i < fineGrainedCommitInvocationsCallbacks.length; i++) {
-                    dog.addChangeListener(fineGrainedCommitInvocationsCallbacks[i]);
+                for (int i = 0; i < NUMBER_OF_LISTENERS; i++) {
+                    dog.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            fineGrainedCommitInvocations.incrementAndGet();
+                        }
+                    });
                 }
 
                 realm.beginTransaction();
@@ -301,21 +287,12 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
             }
         });
         TestHelper.awaitOrFail(signalTestFinished);
-        assertEquals(7, fineGrainedCommitInvocations.get());
+        assertEquals(NUMBER_OF_LISTENERS, fineGrainedCommitInvocations.get());
     }
 
-    // UC 3 Async RealmObject
-    public void test_multiple_callbacks_should_be_invoked_realmobject_async () {
-        final RealmChangeListener[] fineGrainedCommitInvocationsCallbacks = new RealmChangeListener[7];
-        for (int i = 0; i < fineGrainedCommitInvocationsCallbacks.length; i++) {
-            fineGrainedCommitInvocationsCallbacks[i] = new RealmChangeListener() {
-                @Override
-                public void onChange() {
-                    fineGrainedCommitInvocations.incrementAndGet();
-                }
-            };
-        }
-
+    // UC 2 Async RealmObject
+    public void test_multiple_callbacks_should_be_invoked_realmobject_async() {
+        final int NUMBER_OF_LISTENERS = 7;
         handler.post(new Runnable() {
             @Override
             public void run() {
@@ -338,8 +315,13 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
 
                 Dog dog = realm.where(Dog.class).findFirstAsync();
                 assertTrue(dog.load());
-                for (int i = 0; i < fineGrainedCommitInvocationsCallbacks.length; i++) {
-                    dog.addChangeListener(fineGrainedCommitInvocationsCallbacks[i]);
+                for (int i = 0; i < NUMBER_OF_LISTENERS; i++) {
+                    dog.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            fineGrainedCommitInvocations.incrementAndGet();
+                        }
+                    });
                 }
 
                 realm.beginTransaction();
@@ -351,21 +333,12 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
             }
         });
         TestHelper.awaitOrFail(signalTestFinished);
-        assertEquals(7, fineGrainedCommitInvocations.get());
+        assertEquals(NUMBER_OF_LISTENERS, fineGrainedCommitInvocations.get());
     }
 
-    // UC 3 Sync RealmResults
-    public void test_multiple_callbacks_should_be_invoked_realmresults_sync () {
-        final RealmChangeListener[] fineGrainedCommitInvocationsCallbacks = new RealmChangeListener[7];
-        for (int i = 0; i < fineGrainedCommitInvocationsCallbacks.length; i++) {
-            fineGrainedCommitInvocationsCallbacks[i] = new RealmChangeListener() {
-                @Override
-                public void onChange() {
-                    fineGrainedCommitInvocations.incrementAndGet();
-                }
-            };
-        }
-
+    // UC 2 Sync RealmResults
+    public void test_multiple_callbacks_should_be_invoked_realmresults_sync() {
+        final int NUMBER_OF_LISTENERS = 7;
         handler.post(new Runnable() {
             @Override
             public void run() {
@@ -387,8 +360,13 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
                 realm.commitTransaction();
 
                 RealmResults<Dog> dogs = realm.where(Dog.class).findAll();
-                for (int i = 0; i < fineGrainedCommitInvocationsCallbacks.length; i++) {
-                    dogs.addChangeListener(fineGrainedCommitInvocationsCallbacks[i]);
+                for (int i = 0; i < NUMBER_OF_LISTENERS; i++) {
+                    dogs.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            fineGrainedCommitInvocations.incrementAndGet();
+                        }
+                    });
                 }
 
                 realm.beginTransaction();
@@ -400,21 +378,12 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
             }
         });
         TestHelper.awaitOrFail(signalTestFinished);
-        assertEquals(7, fineGrainedCommitInvocations.get());
+        assertEquals(NUMBER_OF_LISTENERS, fineGrainedCommitInvocations.get());
     }
 
-    // UC 3 Async RealmResults
-    public void test_multiple_callbacks_should_be_invoked_realmresults_async () {
-        final RealmChangeListener[] fineGrainedCommitInvocationsCallbacks = new RealmChangeListener[7];
-        for (int i = 0; i < fineGrainedCommitInvocationsCallbacks.length; i++) {
-            fineGrainedCommitInvocationsCallbacks[i] = new RealmChangeListener() {
-                @Override
-                public void onChange() {
-                    fineGrainedCommitInvocations.incrementAndGet();
-                }
-            };
-        }
-
+    // UC 2 Async RealmResults
+    public void test_multiple_callbacks_should_be_invoked_realmresults_async() {
+        final int NUMBER_OF_LISTENERS = 7;
         handler.post(new Runnable() {
             @Override
             public void run() {
@@ -437,8 +406,13 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
 
                 RealmResults<Dog> dogs = realm.where(Dog.class).findAllAsync();
                 assertTrue(dogs.load());
-                for (int i = 0; i < fineGrainedCommitInvocationsCallbacks.length; i++) {
-                    dogs.addChangeListener(fineGrainedCommitInvocationsCallbacks[i]);
+                for (int i = 0; i < NUMBER_OF_LISTENERS; i++) {
+                    dogs.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            fineGrainedCommitInvocations.incrementAndGet();
+                        }
+                    });
                 }
 
                 realm.beginTransaction();
@@ -450,59 +424,42 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
             }
         });
         TestHelper.awaitOrFail(signalTestFinished);
-        assertEquals(7, fineGrainedCommitInvocations.get());
+        assertEquals(NUMBER_OF_LISTENERS, fineGrainedCommitInvocations.get());
     }
 
     // ********************************************************************************* //
-    // UC 4.
-    // Callbacks should not be invoked while the RealmObject/RealmResults is sill empty.
-    // updating the Realm with irrelevant commit should still not trigger the callback
-    // adding a relevant commit will trigger callback
+    // UC 3.
+    // Callback should be invoked when a non Looper thread commits
     // ********************************************************************************* //
 
-    // UC 4 for Sync RealmObject
-    // UC 4 Async RealmObject
-    // UC 4 Sync RealmResults
-    // UC 4 Async RealmResults
-
-    // ********************************************************************************* //
-    // UC 5.
-    // Callback should be invoked when a non Looper thread commit
-    // ********************************************************************************* //
-
-    // UC 5 for Sync RealmObject
-    public void test_non_looper_thread_commit_realmobject_sync () {
-        final CountDownLatch bgNonLooperThread = new CountDownLatch(1);
+    // UC 3 for Sync RealmObject
+    public void test_non_looper_thread_commit_realmobject_sync() {
         handler.post(new Runnable() {
             @Override
             public void run() {
                 realm = Realm.getInstance(configuration);
-                RealmChangeListener listener = new RealmChangeListener() {
+                realm.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
-                        if (globalCommitInvocations.incrementAndGet() == 2)  {
+                        if (globalCommitInvocations.incrementAndGet() == 2) {
                             signalTestFinished.countDown();
                         }
                     }
-                };
+                });
 
-                RealmChangeListener listenerFineGrained = new RealmChangeListener() {
+                realm.beginTransaction();
+                realm.createObject(Dog.class);
+                realm.commitTransaction();
+
+                Dog dog = realm.where(Dog.class).findFirst();
+                dog.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
                         fineGrainedCommitInvocations.incrementAndGet();
                     }
-                };
-                realm.addChangeListener(listener);
+                });
 
-                realm.beginTransaction();
-                Dog akamaru = realm.createObject(Dog.class);
-                akamaru.setName("Akamaru");
-                realm.commitTransaction();
-
-                Dog dog = realm.where(Dog.class).findFirst();
-                dog.addChangeListener(listenerFineGrained);
-
-                new Thread () {
+                Thread thread = new Thread() {
                     @Override
                     public void run() {
                         Realm bgRealm = Realm.getInstance(realm.getConfiguration());
@@ -510,49 +467,57 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
                         bgRealm.createObject(Dog.class);
                         bgRealm.commitTransaction();
                         bgRealm.close();
-                        bgNonLooperThread.countDown();
                     }
-                }.start();
+                };
+                thread.start();
+                try {
+                    thread.join();
+                    // this will give the posted notification a chance to execute
+                    // keep this Runnable alive (waiting for the commit to arrive)
+                    final int MAX_RETRIES = 60;
+                    int numberOfSleep = 0;
+                    while (numberOfSleep++ < MAX_RETRIES
+                            && fineGrainedCommitInvocations.incrementAndGet() != 1) {
+                        Thread.sleep(16);
+                    }
+                    assertEquals(1, fineGrainedCommitInvocations.get());
+                } catch (InterruptedException e) {
+                    fail(e.getMessage());
+                }
             }
         });
-        TestHelper.awaitOrFail(bgNonLooperThread);
         TestHelper.awaitOrFail(signalTestFinished);
         assertEquals(1, fineGrainedCommitInvocations.get());
     }
-    // UC 5 Async RealmObject
-    public void test_non_looper_thread_commit_realmobject_async () {
-        final CountDownLatch bgNonLooperThread = new CountDownLatch(1);
+    // UC 3 Async RealmObject
+    public void test_non_looper_thread_commit_realmobject_async() {
         handler.post(new Runnable() {
             @Override
             public void run() {
                 realm = Realm.getInstance(configuration);
-                RealmChangeListener listener = new RealmChangeListener() {
+                realm.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
-                        if (globalCommitInvocations.incrementAndGet() == 2)  {
+                        if (globalCommitInvocations.incrementAndGet() == 2) {
                             signalTestFinished.countDown();
                         }
                     }
-                };
-
-                RealmChangeListener listenerFineGrained = new RealmChangeListener() {
-                    @Override
-                    public void onChange() {
-                        fineGrainedCommitInvocations.incrementAndGet();
-                    }
-                };
-                realm.addChangeListener(listener);
+                });
 
                 realm.beginTransaction();
-                Dog akamaru = realm.createObject(Dog.class);
-                akamaru.setName("Akamaru");
+                realm.createObject(Dog.class);
                 realm.commitTransaction();
 
                 Dog dog = realm.where(Dog.class).findFirstAsync();
                 assertTrue(dog.load());
-                dog.addChangeListener(listenerFineGrained);
+                dog.addChangeListener(new RealmChangeListener() {
+                    @Override
+                    public void onChange() {
+                        fineGrainedCommitInvocations.incrementAndGet();
+                    }
+                });
 
-                new Thread () {
+                Thread thread = new Thread() {
                     @Override
                     public void run() {
                         Realm bgRealm = Realm.getInstance(realm.getConfiguration());
@@ -560,54 +525,57 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
                         bgRealm.createObject(Dog.class);
                         bgRealm.commitTransaction();
                         bgRealm.close();
-                        bgNonLooperThread.countDown();
                     }
-                }.start();
+                };
+                thread.start();
+                try {
+                    thread.join();
+                    // this will give the posted notification a chance to execute
+                    // keep this Runnable alive (waiting for the commit to arrive)
+                    final int MAX_RETRIES = 60;
+                    int numberOfSleep = 0;
+                    while (numberOfSleep++ < MAX_RETRIES
+                            && fineGrainedCommitInvocations.incrementAndGet() != 1) {
+                        Thread.sleep(16);
+                    }
+                    assertEquals(1, fineGrainedCommitInvocations.get());
+                } catch (InterruptedException e) {
+                    fail(e.getMessage());
+                }
             }
         });
-        TestHelper.awaitOrFail(bgNonLooperThread);
         TestHelper.awaitOrFail(signalTestFinished);
         assertEquals(1, fineGrainedCommitInvocations.get());
     }
-    // UC 5 Sync RealmResults
-    public void test_non_looper_thread_commit_realmresults_sync () {
-        final CountDownLatch bgNonLooperThread = new CountDownLatch(1);
-        // Keep strong reference to the callback
-        // TODO remove this once the PR about strong reference is merged
-        final RealmChangeListener[] callbacks = new RealmChangeListener[2];
+    // UC 3 Sync RealmResults
+    public void test_non_looper_thread_commit_realmresults_sync() {
         handler.post(new Runnable() {
             @Override
             public void run() {
                 realm = Realm.getInstance(configuration);
-
-                RealmChangeListener listener = new RealmChangeListener() {
+                realm.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
                         if (globalCommitInvocations.incrementAndGet() == 2) {
                             signalTestFinished.countDown();
                         }
                     }
-                };
-                realm.addChangeListener(listener);
-                callbacks[0] = listener;
+                });
 
                 realm.beginTransaction();
-                Dog akamaru = realm.createObject(Dog.class);
-                akamaru.setName("Akamaru");
+                realm.createObject(Dog.class);
                 realm.commitTransaction();
 
                 final RealmResults<Dog> dogs = realm.where(Dog.class).findAll();
-                RealmChangeListener listenerFineGrained = new RealmChangeListener() {
+                dogs.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
                         fineGrainedCommitInvocations.incrementAndGet();
                         assertEquals(2, dogs.size());
                     }
-                };
-                dogs.addChangeListener(listenerFineGrained);
-                callbacks[1] = listenerFineGrained;
+                });
 
-                new Thread() {
+                Thread thread = new Thread() {
                     @Override
                     public void run() {
                         Realm bgRealm = Realm.getInstance(realm.getConfiguration());
@@ -615,57 +583,57 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
                         bgRealm.createObject(Dog.class);
                         bgRealm.commitTransaction();
                         bgRealm.close();
-                        bgNonLooperThread.countDown();
                     }
-                }.start();
-
+                };
+                thread.start();
+                try {
+                    thread.join();
+                    // this will give the posted notification a chance to execute
+                    // keep this Runnable alive (waiting for the commit to arrive)
+                    final int MAX_RETRIES = 60;
+                    int numberOfSleep = 0;
+                    while (numberOfSleep++ < MAX_RETRIES
+                            && fineGrainedCommitInvocations.incrementAndGet() != 1) {
+                        Thread.sleep(16);
+                    }
+                    assertEquals(1, fineGrainedCommitInvocations.get());
+                } catch (InterruptedException e) {
+                    fail(e.getMessage());
+                }
             }
         });
-
-        TestHelper.awaitOrFail(bgNonLooperThread);
         TestHelper.awaitOrFail(signalTestFinished);
-        assertEquals(1, fineGrainedCommitInvocations.get());
     }
-    // UC 5 Async RealmResults
-    public void test_non_looper_thread_commit_realmresults_async () {
-        final CountDownLatch bgNonLooperThread = new CountDownLatch(1);
-        // Keep strong reference to the callback
-        // TODO remove this once the PR about strong reference is merged
-        final RealmChangeListener[] callbacks = new RealmChangeListener[2];
+    // UC 3 Async RealmResults
+    public void test_non_looper_thread_commit_realmresults_async() {
         handler.post(new Runnable() {
             @Override
             public void run() {
                 realm = Realm.getInstance(configuration);
-
-                RealmChangeListener listener = new RealmChangeListener() {
+                realm.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
                         if (globalCommitInvocations.incrementAndGet() == 2) {
                             signalTestFinished.countDown();
                         }
                     }
-                };
-                realm.addChangeListener(listener);
-                callbacks[0] = listener;
+                });
 
                 realm.beginTransaction();
-                Dog akamaru = realm.createObject(Dog.class);
-                akamaru.setName("Akamaru");
+                realm.createObject(Dog.class);
                 realm.commitTransaction();
 
                 final RealmResults<Dog> dogs = realm.where(Dog.class).findAllAsync();
                 assertTrue(dogs.load());
-                RealmChangeListener listenerFineGrained = new RealmChangeListener() {
+                dogs.addChangeListener(new RealmChangeListener() {
                     @Override
                     public void onChange() {
                         fineGrainedCommitInvocations.incrementAndGet();
                         assertEquals(2, dogs.size());
                     }
-                };
-                dogs.addChangeListener(listenerFineGrained);
-                callbacks[1] = listenerFineGrained;
+                });
 
-                new Thread() {
+                Thread thread = new Thread() {
                     @Override
                     public void run() {
                         Realm bgRealm = Realm.getInstance(realm.getConfiguration());
@@ -673,59 +641,109 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
                         bgRealm.createObject(Dog.class);
                         bgRealm.commitTransaction();
                         bgRealm.close();
-                        bgNonLooperThread.countDown();
                     }
-                }.start();
+                };
+                thread.start();
+                try {
+                    thread.join();
+                    // this will give the posted notification a chance to execute
+                    // keep this Runnable alive (waiting for the commit to arrive)
+                    final int MAX_RETRIES = 60;
+                    int numberOfSleep = 0;
+                    while (numberOfSleep++ < MAX_RETRIES
+                            && fineGrainedCommitInvocations.incrementAndGet() != 1) {
+                        Thread.sleep(16);
+                    }
+                    assertEquals(1, fineGrainedCommitInvocations.get());
+                } catch (InterruptedException e) {
+                    fail(e.getMessage());
+                }
 
             }
         });
-
-        TestHelper.awaitOrFail(bgNonLooperThread);
         TestHelper.awaitOrFail(signalTestFinished);
         assertEquals(1, fineGrainedCommitInvocations.get());
     }
 
-    // ********************************************************************************* //
-    // UC 6.
-    // Callback should be invoked when the same Looper thread commit
-    // ********************************************************************************* //
+    // ****************************************************************************************** //
+    // UC 4.
+    // Callback should throw if registered on a non Looper thread.
+    // no tests for async RealmObject & RealmResults, since those already require a Looper thread
+    // ***************************************************************************************** //
 
-    // UC 5 for Sync RealmObject
-    // UC 5 Async RealmObject
-    // UC 5 Sync RealmResults
-    // UC 5 Async RealmResults
-
-    // ********************************************************************************* //
-    // UC 7.
-    // Callback should throw if registered on a non Looper thread (should be done on Strong Reference PR
-    // ********************************************************************************* //
-
-    // UC 5 for Sync RealmObject
-    public void test_should_throw_on_non_looper_thread_realmobject_sync () {
-        // TODO remove when callbacks becomes strong reference
-        final RealmChangeListener[] callbacks = new RealmChangeListener[2];
+    // UC 4 for Realm
+    public void test_should_throw_on_non_looper_thread_realm() {
         new Thread() {
             @Override
             public void run() {
-                Realm bgRealm = Realm.getInstance(realm.getConfiguration());
-                callbacks[0] =  new RealmChangeListener() {
-                    @Override
-                    public void onChange() {
-                        fail("Callback should not be registered and invoked on a non-Looper thread");
-                    }
-                };
-                bgRealm.addChangeListener(callbacks[0]);
-                bgRealm.beginTransaction();
-                bgRealm.createObject(Dog.class);
-                bgRealm.commitTransaction();
-                bgRealm.close();
-                signalTestFinished.countDown();
+                Realm bgRealm = Realm.getInstance(configuration);
+                try {
+                    bgRealm.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            fail("Callback should not be registered and invoked on a non-Looper thread");
+                        }
+                    });
+                    fail("Callback should not be registered and invoked on a non-Looper thread");
+                } catch (IllegalStateException ignored) {
+
+                } finally {
+                    bgRealm.close();
+                    signalTestFinished.countDown();
+                }
             }
         }.start();
         TestHelper.awaitOrFail(signalTestFinished);
     }
-    // UC 5 Async RealmObject
-    // UC 5 Sync RealmResults
-    // UC 5 Async RealmResults
 
+    // UC 4 for RealmObject
+    public void test_should_throw_on_non_looper_thread_realmobject() {
+        new Thread() {
+            @Override
+            public void run() {
+                Realm bgRealm = Realm.getInstance(configuration);
+                try {
+                    Dog dog = bgRealm.where(Dog.class).findFirst();
+                    dog.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            fail("Callback should not be registered and invoked on a non-Looper thread");
+                        }
+                    });
+                    fail("Callback should not be registered and invoked on a non-Looper thread");
+                } catch (IllegalStateException ignored) {
+
+                } finally {
+                    bgRealm.close();
+                    signalTestFinished.countDown();
+                }
+            }
+        }.start();
+        TestHelper.awaitOrFail(signalTestFinished);
+    }
+    // UC 4 RealmObject
+    public void test_should_throw_on_non_looper_thread_realmoresults() {
+        new Thread() {
+            @Override
+            public void run() {
+                Realm bgRealm = Realm.getInstance(configuration);
+                try {
+                    RealmResults<Dog> dogs = bgRealm.where(Dog.class).findAll();
+                    dogs.addChangeListener(new RealmChangeListener() {
+                        @Override
+                        public void onChange() {
+                            fail("Callback should not be registered and invoked on a non-Looper thread");
+                        }
+                    });
+                    fail("Callback should not be registered and invoked on a non-Looper thread");
+                } catch (IllegalStateException ignored) {
+
+                } finally {
+                    bgRealm.close();
+                    signalTestFinished.countDown();
+                }
+            }
+        }.start();
+        TestHelper.awaitOrFail(signalTestFinished);
+    }
 }

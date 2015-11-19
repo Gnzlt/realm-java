@@ -571,23 +571,15 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
 //        throw new NoSuchMethodError();
 //    }
 
-    private void assertRealmIsStable() {
-        //TODO use a currentTableViewVersion internal to the class RealmResultsIterator
-//        long version = table.sync();
-//        if (currentTableViewVersion > -1 && version != currentTableViewVersion) {
-//            throw new ConcurrentModificationException("No outside changes to a Realm is allowed while iterating a RealmResults. Use iterators methods instead.");
-//        }
-//
-//        currentTableViewVersion = version;
-    }
+
 
     // Custom RealmResults iterator. It ensures that we only iterate on a Realm that hasn't changed.
     private class RealmResultsIterator implements Iterator<E> {
-
+        long tableViewVersion = -1;
         int pos = -1;
 
         RealmResultsIterator() {
-//            currentTableViewVersion = table.sync();
+            tableViewVersion = table.sync();
         }
 
         public boolean hasNext() {
@@ -625,6 +617,14 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
             removeUsed = true;
             currentTableViewVersion = getTable().sync();
      */   }
+
+        protected void assertRealmIsStable() {
+            long version = table.sync();
+            if (tableViewVersion > -1 && version != tableViewVersion) {
+                throw new ConcurrentModificationException("No outside changes to a Realm is allowed while iterating a RealmResults. Use iterators methods instead.");
+            }
+            tableViewVersion = version;
+        }
     }
 
     // Custom RealmResults list iterator. It ensures that we only iterate on a Realm that hasn't changed.
@@ -724,9 +724,6 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
      * running.
      */
     public boolean isLoaded() {
-        if (realm == null) {
-            return true;
-        }
         realm.checkIfValid();
         return pendingQuery == null || isCompleted;
     }
@@ -779,8 +776,9 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
         if (listener == null) {
             throw new IllegalArgumentException("Listener should not be null");
         }
-        if (realm != null) {
-            realm.checkIfValid();
+        realm.checkIfValid();
+        if (realm.handler == null) {
+            throw new IllegalStateException("You can't register a listener from a non-Looper thread ");
         }
         if (!listeners.contains(listener)) {
             listeners.add(listener);
@@ -796,9 +794,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
         if (listener == null)
             throw new IllegalArgumentException("Listener should not be null");
 
-        if (realm != null) {
-            realm.checkIfValid();
-        }
+        realm.checkIfValid();
         listeners.remove(listener);
     }
 
@@ -806,9 +802,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
      * Removes all registered listeners.
      */
     public void removeChangeListeners() {
-        if (realm != null) {
-            realm.checkIfValid();
-        }
+        realm.checkIfValid();
         listeners.clear();
     }
 
@@ -828,13 +822,4 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
             }
         }
     }
-
-    // notifyChangeListeners will be called for both sync & async regardeless if they
-    // have listener or not (so we can update the version)
-    // we need to keep an IdentityHashMap of WeakRef<RR> of sync RR if we want  to add
-    // all sync RR (even if they don't have a listener (most of the case - not sure with the fine
-    // grained notif) or if we want to only add RR where we add a listener we need to keep another DS
-    // to allow use to know if a particular instnace hash is already in the HashMap or note
-    // which add more overhead compared to add a WeakRef into IdentityMap (storing ref) cheaper than duplicating everythings
-
 }

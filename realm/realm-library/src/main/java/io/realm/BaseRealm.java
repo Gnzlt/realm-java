@@ -156,10 +156,14 @@ abstract class BaseRealm implements Closeable {
      * </ul>
      *
      * @param listener the change listener.
+     * @throws IllegalStateException if you try to register a listener from a non-Looper Thread.
      * @see io.realm.RealmChangeListener
      */
     public void addChangeListener(RealmChangeListener listener) {
         checkIfValid();
+        if (handler == null) {
+            throw new IllegalStateException("You can't register a listener from a non-Looper thread ");
+        }
         changeListeners.addIfAbsent(listener);
     }
 

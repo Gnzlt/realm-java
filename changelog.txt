@@ -1,3 +1,7 @@
+0.86.0
+ * BREAKING CHANGE: Realm.addChangeListener, RealmObject.addChangeListener and RealmResults.addChangeListener will throw an IllegalStateException when invoked on a non-Looper thread. This is to prevent registering listeners that will never be invoked (since we rely on Handler/Looper).
+ * BREAKING CHANGE: Realm.addChangeListener, RealmObject.addChangeListener and RealmResults.addChangeListener hold a strong reference to the listener, you should unregister the listener to avoid memory leaking.
+
 0.85.0
  * BREAKING CHANGE: Realm.executeTransaction() now directly throws any RuntimeException instead of wrapping it in a RealmException (#1682).
  * Added Realm.isEmpty().

@@ -232,6 +232,9 @@ public abstract class RealmObject {
         } else {
             throw new IllegalArgumentException("Cannot add listener from this unmanaged RealmObject (created outside of Realm)");
         }
+        if (realm.handler == null) {
+            throw new IllegalStateException("You can't register a listener from a non-Looper thread ");
+        }
         if (!listeners.contains(listener)) {
             listeners.add(listener);
         }
