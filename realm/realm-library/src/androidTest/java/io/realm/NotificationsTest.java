@@ -652,22 +652,17 @@ public class NotificationsTest extends AndroidTestCase {
     }
 
     public void testNonLooperThreadShouldNotifyLooperThreadAboutCommit() throws Throwable {
-        final Throwable[] backgroundErrors = new Throwable[1];
         final CountDownLatch mainThreadReady = new CountDownLatch(1);
         final CountDownLatch numberOfInvocation = new CountDownLatch(1);
         Thread thread = new Thread() {
             @Override
             public void run() {
-                try {
-                    mainThreadReady.await();
-                    Realm realm = Realm.getInstance(getContext());
-                    realm.beginTransaction();
-                    realm.createObject(AllTypes.class);
-                    realm.commitTransaction();
-                    realm.close();
-                } catch (InterruptedException e) {
-                    backgroundErrors[0] = e;
-                }
+                TestHelper.awaitOrFail(mainThreadReady);
+                Realm realm = Realm.getInstance(getContext());
+                realm.beginTransaction();
+                realm.createObject(AllTypes.class);
+                realm.commitTransaction();
+                realm.close();
             }
         };
         thread.start();
@@ -692,9 +687,6 @@ public class NotificationsTest extends AndroidTestCase {
 
         awaitOrThrow(numberOfInvocation);
         mainThread.quit();
-        if (backgroundErrors[0] != null) {
-            throw backgroundErrors[0];
-        }
     }
 
     private void awaitOrThrow(CountDownLatch latch) {
