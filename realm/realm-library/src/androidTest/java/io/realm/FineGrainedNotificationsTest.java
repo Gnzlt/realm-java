@@ -265,7 +265,6 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
 
                 realm.beginTransaction();
                 Dog akamaru = realm.createObject(Dog.class);
-                akamaru.setName("Akamaru");
                 realm.commitTransaction();
 
                 Dog dog = realm.where(Dog.class).findFirst();
@@ -310,7 +309,6 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
 
                 realm.beginTransaction();
                 Dog akamaru = realm.createObject(Dog.class);
-                akamaru.setName("Akamaru");
                 realm.commitTransaction();
 
                 Dog dog = realm.where(Dog.class).findFirstAsync();
@@ -356,7 +354,6 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
 
                 realm.beginTransaction();
                 Dog akamaru = realm.createObject(Dog.class);
-                akamaru.setName("Akamaru");
                 realm.commitTransaction();
 
                 RealmResults<Dog> dogs = realm.where(Dog.class).findAll();
@@ -401,7 +398,6 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
 
                 realm.beginTransaction();
                 Dog akamaru = realm.createObject(Dog.class);
-                akamaru.setName("Akamaru");
                 realm.commitTransaction();
 
                 RealmResults<Dog> dogs = realm.where(Dog.class).findAllAsync();
@@ -530,8 +526,7 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
                 thread.start();
                 try {
                     thread.join();
-                    // this will give the posted notification a chance to execute
-                    // keep this Runnable alive (waiting for the commit to arrive)
+
                     final int MAX_RETRIES = 60;
                     int numberOfSleep = 0;
                     while (numberOfSleep++ < MAX_RETRIES
@@ -588,8 +583,7 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
                 thread.start();
                 try {
                     thread.join();
-                    // this will give the posted notification a chance to execute
-                    // keep this Runnable alive (waiting for the commit to arrive)
+
                     final int MAX_RETRIES = 60;
                     int numberOfSleep = 0;
                     while (numberOfSleep++ < MAX_RETRIES
@@ -646,8 +640,7 @@ public class FineGrainedNotificationsTest extends AndroidTestCase {
                 thread.start();
                 try {
                     thread.join();
-                    // this will give the posted notification a chance to execute
-                    // keep this Runnable alive (waiting for the commit to arrive)
+
                     final int MAX_RETRIES = 60;
                     int numberOfSleep = 0;
                     while (numberOfSleep++ < MAX_RETRIES

@@ -755,7 +755,7 @@ public final class RealmResults<E extends RealmObject> extends AbstractList<E> {
         try {
             long tvHandover = pendingQuery.get();// make the query blocking
             // this may fail with BadVersionException if the caller and/or the worker thread
-            // are not in sync. REALM_COMPLETED_ASYNC_QUERY will be fired by the worker thread
+            // are not in sync. COMPLETED_ASYNC_REALM_RESULTS will be fired by the worker thread
             // this should handle more complex use cases like retry, ignore etc
             table = query.importHandoverTableView(tvHandover, realm.sharedGroupManager.getNativePointer());
             isCompleted = true;

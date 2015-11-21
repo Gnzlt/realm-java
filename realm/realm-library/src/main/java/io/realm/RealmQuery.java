@@ -1466,7 +1466,7 @@ public class RealmQuery<E extends RealmObject> {
                         QueryUpdateTask.Result result = QueryUpdateTask.Result.newRealmResultsResponse();
                         result.updatedTableViews.put(weakRealmResults, handoverTableViewPointer);
                         result.versionID = sharedGroup.getVersion();
-                        sendMessageToHandler(weakHandler, HandlerController.REALM_COMPLETED_ASYNC_QUERY, result);
+                        sendMessageToHandler(weakHandler, HandlerController.COMPLETED_ASYNC_REALM_RESULTS, result);
 
                         return handoverTableViewPointer;
                     } catch (Exception e) {
@@ -1551,7 +1551,7 @@ public class RealmQuery<E extends RealmObject> {
                         QueryUpdateTask.Result result = QueryUpdateTask.Result.newRealmResultsResponse();
                         result.updatedTableViews.put(weakRealmResults, handoverTableViewPointer);
                         result.versionID = sharedGroup.getVersion();
-                        sendMessageToHandler(weakHandler, HandlerController.REALM_COMPLETED_ASYNC_QUERY, result);
+                        sendMessageToHandler(weakHandler, HandlerController.COMPLETED_ASYNC_REALM_RESULTS, result);
 
                         return handoverTableViewPointer;
 
@@ -1653,7 +1653,7 @@ public class RealmQuery<E extends RealmObject> {
                         QueryUpdateTask.Result result = QueryUpdateTask.Result.newRealmResultsResponse();
                         result.updatedTableViews.put(weakRealmResults, handoverTableViewPointer);
                         result.versionID = sharedGroup.getVersion();
-                        sendMessageToHandler(weakHandler, HandlerController.REALM_COMPLETED_ASYNC_QUERY, result);
+                        sendMessageToHandler(weakHandler, HandlerController.COMPLETED_ASYNC_REALM_RESULTS, result);
 
                         return handoverTableViewPointer;
                     } catch (Exception e) {
@@ -1806,7 +1806,7 @@ public class RealmQuery<E extends RealmObject> {
                             QueryUpdateTask.Result result = QueryUpdateTask.Result.newRealmResultsResponse();
                             result.updatedTableViews.put(weakRealmResults, handoverTableViewPointer);
                             result.versionID = sharedGroup.getVersion();
-                            sendMessageToHandler(weakHandler, HandlerController.REALM_COMPLETED_ASYNC_QUERY, result);
+                            sendMessageToHandler(weakHandler, HandlerController.COMPLETED_ASYNC_REALM_RESULTS, result);
 
                             return handoverTableViewPointer;
                         } catch (Exception e) {
@@ -1968,14 +1968,14 @@ public class RealmQuery<E extends RealmObject> {
                         QueryUpdateTask.Result result = QueryUpdateTask.Result.newRealmObjectResponse();
                         result.updatedRow.put(realmObjectWeakReference, handoverTableViewPointer);
                         result.versionID = sharedGroup.getVersion();
-                        sendMessageToHandler(weakHandler, HandlerController.REALM_COMPLETED_ASYNC_FIND_FIRST, result);
+                        sendMessageToHandler(weakHandler, HandlerController.COMPLETED_ASYNC_REALM_OBJECT, result);
 
                         return handoverTableViewPointer;
 
                     } catch (Exception e) {
                         RealmLog.e(e.getMessage());
                         // handler can't throw a checked exception need to wrap it into unchecked Exception
-                        sendMessageToHandler(weakHandler, HandlerController.REALM_COMPLETED_ASYNC_FIND_FIRST, new Error(e));
+                        sendMessageToHandler(weakHandler, HandlerController.COMPLETED_ASYNC_REALM_OBJECT, new Error(e));
 
                     } finally {
                         if (null != sharedGroup) {
