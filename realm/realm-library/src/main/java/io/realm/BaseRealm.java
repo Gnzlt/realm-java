@@ -156,8 +156,13 @@ abstract class BaseRealm implements Closeable {
      *     <li>On every call to {@link io.realm.Realm#refresh()}</li>
      * </ul>
      *
+     * Listeners are stored as strong reference, you need to remove the add listeners using {@link #removeChangeListener(RealmChangeListener)}
+     * or {@link #removeAllChangeListeners()} which removes all listeners including the one add via anonymous classes.
+     *
      * @param listener the change listener.
      * @see io.realm.RealmChangeListener
+     * @see #removeChangeListener(RealmChangeListener)
+     * @see #removeAllChangeListeners()
      */
     public void addChangeListener(RealmChangeListener listener) {
         checkIfValid();
@@ -187,10 +192,22 @@ abstract class BaseRealm implements Closeable {
      *
      * @param listener the change listener to be removed.
      * @see io.realm.RealmChangeListener
+     * @see #addChangeListener(RealmChangeListener)
      */
     public void removeChangeListener(RealmChangeListener listener) {
         checkIfValid();
         changeListeners.remove(listener);
+    }
+
+    /**
+     * Removes all user-defined change listeners.
+     *
+     * @see io.realm.RealmChangeListener
+     * @see #addChangeListener(RealmChangeListener)
+     */
+    public void removeAllChangeListeners() {
+        checkIfValid();
+        changeListeners.clear();
     }
 
     void setHandler (Handler handler) {
@@ -198,16 +215,6 @@ abstract class BaseRealm implements Closeable {
         handlers.remove(this.handler);
         handlers.put(handler, configuration.getPath());
         this.handler = handler;
-    }
-
-    /**
-     * Removes all user-defined change listeners.
-     *
-     * @see io.realm.RealmChangeListener
-     */
-    public void removeAllChangeListeners() {
-        checkIfValid();
-        changeListeners.clear();
     }
 
     /**
