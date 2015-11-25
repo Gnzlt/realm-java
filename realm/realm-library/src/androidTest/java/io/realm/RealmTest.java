@@ -46,7 +46,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import io.realm.annotations.Required;
 import io.realm.DynamicRealmObject;
-import io.realm.entities.AllTypes;
+simport io.realm.entities.AllTypes;
 import io.realm.entities.AllTypesPrimaryKey;
 import io.realm.entities.AnnotationIndexTypes;
 import io.realm.entities.Cat;
