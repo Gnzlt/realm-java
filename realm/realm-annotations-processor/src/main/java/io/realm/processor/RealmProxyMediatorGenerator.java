@@ -68,6 +68,7 @@ public class RealmProxyMediatorGenerator {
                 "android.util.JsonReader",
                 "java.io.IOException",
                 "java.util.Collections",
+                "java.util.HashMap",
                 "java.util.HashSet",
                 "java.util.List",
                 "java.util.Map",
@@ -292,7 +293,8 @@ public class RealmProxyMediatorGenerator {
         emitMediatorSwitch(new ProxySwitchStatement() {
             @Override
             public void emitStatement(int i, JavaWriter writer) throws IOException {
-                writer.emitStatement("return clazz.cast(%s.createDetachedCopy((%s) realmObject, 0, maxDepth))", proxyClasses.get(i), simpleModelClasses.get(i));
+                writer.emitStatement("return clazz.cast(%s.createDetachedCopy((%s) realmObject, 0, maxDepth, new HashMap<RealmObject, RealmObject>()))",
+                        proxyClasses.get(i), simpleModelClasses.get(i));
             }
         }, writer, false);
         writer.endMethod();

@@ -2410,11 +2410,11 @@ public class RealmTest extends AndroidTestCase {
         AllTypes standaloneObject = testRealm.copyFromRealm(realmObject);
         assertArrayEquals(realmObject.getColumnBinary(), standaloneObject.getColumnBinary());
         assertEquals(realmObject.getColumnString(), standaloneObject.getColumnString());
-        assertEquals(realmObject.getColumnLong(), standaloneObject.getColumnString());
-        assertEquals(realmObject.getColumnFloat(), standaloneObject.getColumnString());
-        assertEquals(realmObject.getColumnDouble(), standaloneObject.getColumnString());
-        assertEquals(realmObject.isColumnBoolean(), standaloneObject.getColumnString());
-        assertEquals(realmObject.getColumnDate(), standaloneObject.getColumnString());
+        assertEquals(realmObject.getColumnLong(), standaloneObject.getColumnLong());
+        assertEquals(realmObject.getColumnFloat(), standaloneObject.getColumnFloat());
+        assertEquals(realmObject.getColumnDouble(), standaloneObject.getColumnDouble());
+        assertEquals(realmObject.isColumnBoolean(), standaloneObject.isColumnBoolean());
+        assertEquals(realmObject.getColumnDate(), standaloneObject.getColumnDate());
         // TODO Test RealmObject and RealmList
     }
 }

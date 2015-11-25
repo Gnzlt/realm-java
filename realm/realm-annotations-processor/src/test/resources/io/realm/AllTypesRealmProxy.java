@@ -700,30 +700,34 @@ public class AllTypesRealmProxy extends AllTypes
             return null;
         }
         AllTypes standaloneObject = new AllTypes();
+        cache.put(realmObject, standaloneObject);
+
         standaloneObject.setColumnLong(realmObject.getColumnLong());
         standaloneObject.setColumnFloat(realmObject.getColumnFloat());
         standaloneObject.setColumnDouble(realmObject.getColumnDouble());
         standaloneObject.setColumnBoolean(realmObject.isColumnBoolean());
         standaloneObject.setColumnDate(realmObject.getColumnDate());
         standaloneObject.setColumnBinary(realmObject.getColumnBinary());
-
-
-        standaloneObject.setColumnObject(AllTypesRealmProxy.createDetachedCopy(realmObject.getColumnObject(), currentDepth + 1, maxDepth));
-        AllTypes cachedStandaloneObject = (AllTypes) cache.get(realmObject);
-        if (cachedStandaloneObject != null) {
-            standaloneObject.setColumnObject(cachedStandaloneObject);
-        } else if (currentDepth == maxDepth) {
-            standaloneObject.setColumnObject(null);
+        // Copy YYY
+        AllTypes cachedXXXObject = (AllTypes) cache.get(realmObject);
+        if (cachedXXXObject != null) {
+            standaloneObject.setColumnObject(cachedXXXObject);
         } else {
-            List<AllTypes> managedList = realmObject.getColumnRealmList();
-            List<AllTypes> standaloneList = new ArrayList<AllTypes>();
-            standaloneObject.setColumnLi
+            standaloneObject.setColumnObject(AllTypesRealmProxy.createDetachedCopy(realmObject.getColumnObject(), currentDepth + 1, maxDepth, cache));
         }
+        // Copy XXX
         if (currentDepth == maxDepth) {
+            standaloneObject.setColumnRealmList(null);
         } else {
+            List<AllTypes> managedXXXList = realmObject.getColumnRealmList();
+            List<AllTypes> standaloneXXXList = new ArrayList<AllTypes>();
+            standaloneObject.setColumnRealmList(standaloneXXXList);
+            int nextDepth = currentDepth + 1;
+            int size = managedXXXList.size()
+            for (int i = 0; i < size; i++) {
+                standaloneXXXList.add(AllTypesRealmProxy.createDetachedCopy(managedXXXList.get(i), nextDepth , maxDepth, cache)
+            }
         }
-
-        return standaloneObject;
     }
 
     @Override
