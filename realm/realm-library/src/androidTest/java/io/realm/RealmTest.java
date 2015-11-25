@@ -44,6 +44,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import io.realm.annotations.Required;
 import io.realm.dynamic.DynamicRealmObject;
 import io.realm.entities.AllTypes;
 import io.realm.entities.AllTypesPrimaryKey;
@@ -2401,5 +2402,19 @@ public class RealmTest extends AndroidTestCase {
         assertFalse(emptyRealm.isEmpty());
 
         emptyRealm.close();
+    }
+
+    public void testCopyFromRealm() {
+        populateTestRealm();
+        AllTypes realmObject = testRealm.where(AllTypes.class).findAllSorted("columnLong").first();
+        AllTypes standaloneObject = testRealm.copyFromRealm(realmObject);
+        assertArrayEquals(realmObject.getColumnBinary(), standaloneObject.getColumnBinary());
+        assertEquals(realmObject.getColumnString(), standaloneObject.getColumnString());
+        assertEquals(realmObject.getColumnLong(), standaloneObject.getColumnString());
+        assertEquals(realmObject.getColumnFloat(), standaloneObject.getColumnString());
+        assertEquals(realmObject.getColumnDouble(), standaloneObject.getColumnString());
+        assertEquals(realmObject.isColumnBoolean(), standaloneObject.getColumnString());
+        assertEquals(realmObject.getColumnDate(), standaloneObject.getColumnString());
+        // TODO Test RealmObject and RealmList
     }
 }

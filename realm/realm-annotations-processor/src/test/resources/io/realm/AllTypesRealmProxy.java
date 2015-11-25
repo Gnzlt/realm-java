@@ -695,6 +695,37 @@ public class AllTypesRealmProxy extends AllTypes
         return realmObject;
     }
 
+    public static AllTypes createDetachedCopy(AllTypes realmObject, int currentDepth, int maxDepth, Map<RealmObject, RealmObject> cache) {
+        if (currentDepth > maxDepth || realmObject == null) {
+            return null;
+        }
+        AllTypes standaloneObject = new AllTypes();
+        standaloneObject.setColumnLong(realmObject.getColumnLong());
+        standaloneObject.setColumnFloat(realmObject.getColumnFloat());
+        standaloneObject.setColumnDouble(realmObject.getColumnDouble());
+        standaloneObject.setColumnBoolean(realmObject.isColumnBoolean());
+        standaloneObject.setColumnDate(realmObject.getColumnDate());
+        standaloneObject.setColumnBinary(realmObject.getColumnBinary());
+
+
+        standaloneObject.setColumnObject(AllTypesRealmProxy.createDetachedCopy(realmObject.getColumnObject(), currentDepth + 1, maxDepth));
+        AllTypes cachedStandaloneObject = (AllTypes) cache.get(realmObject);
+        if (cachedStandaloneObject != null) {
+            standaloneObject.setColumnObject(cachedStandaloneObject);
+        } else if (currentDepth == maxDepth) {
+            standaloneObject.setColumnObject(null);
+        } else {
+            List<AllTypes> managedList = realmObject.getColumnRealmList();
+            List<AllTypes> standaloneList = new ArrayList<AllTypes>();
+            standaloneObject.setColumnLi
+        }
+        if (currentDepth == maxDepth) {
+        } else {
+        }
+
+        return standaloneObject;
+    }
+
     @Override
     public String toString() {
         if (!isValid()) {

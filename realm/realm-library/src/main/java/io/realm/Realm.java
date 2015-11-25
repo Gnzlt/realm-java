@@ -796,6 +796,60 @@ public final class Realm extends BaseRealm {
         return realmObjects;
     }
 
+    /**
+     * Makes a standalone copy of already persisted RealmObjects. This is a deep copy that will also copy all linked
+     * objects. If a {@link Iterable} contains standalone objects they will be copied as well.
+     *
+     * @param realmObjects RealmObjects to copy
+     * @param <E> type of object.
+     * @return A standalone copy of the managed objects.
+     */
+    public <E extends RealmObject> List<E> copyFromRealm(Iterable<E> realmObjects) {
+        return copyFromRealm(realmObjects, Integer.MAX_VALUE);
+    }
+
+    /**
+     * TODO
+     *
+     * @param realmObjects
+     * @param maxDepth How deep a copy to make. Root is depth {@code 0}.
+     * @param <E>
+     * @return
+     */
+    public <E extends RealmObject> List<E> copyFromRealm(Iterable<E> realmObjects, int maxDepth) {
+        if (realmObjects == null) {
+            return new ArrayList<E>();
+        }
+
+        ArrayList<E> standaloneObjects = new ArrayList<E>();
+        for (E object : realmObjects) {
+            standaloneObjects.add(copyToRealmOrUpdate(object));
+        }
+
+        return standaloneObjects;
+    }
+
+    /**
+     * TODO
+     *
+     * @param realmObject
+     * @param <E>
+     * @return
+     */
+    public <E extends RealmObject> E copyFromRealm(E realmObject) {
+        return copyFromRealm(realmObject, Integer.MAX_VALUE);
+    }
+
+    public <E extends RealmObject> E copyFromRealm(E realmObject, int maxDepth) {
+        if (realmObject == null) {
+            throw new IllegalArgumentException("Null objects cannot be copied from Realm.");
+        }
+        if (!realmObject.isValid()) {
+            throw new IllegalArgumentException("RealmObject is not valid, so it cannot be copied.");
+        }
+        return createDetachedCopy(realmObject, maxDepth);
+    }
+
     boolean contains(Class<? extends RealmObject> clazz) {
         return configuration.getSchemaMediator().getModelClasses().contains(clazz);
     }
@@ -1116,6 +1170,11 @@ public final class Realm extends BaseRealm {
     private <E extends RealmObject> E copyOrUpdate(E object, boolean update) {
         checkIfValid();
         return configuration.getSchemaMediator().copyOrUpdate(this, object, update, new HashMap<RealmObject, RealmObjectProxy>());
+    }
+
+    private <E extends RealmObject> E createDetachedCopy(E object, int maxDepth) {
+        checkIfValid();
+        return configuration.getSchemaMediator().createDetachedCopy(object, maxDepth);
     }
 
     private <E extends RealmObject> void checkNotNullObject(E object) {

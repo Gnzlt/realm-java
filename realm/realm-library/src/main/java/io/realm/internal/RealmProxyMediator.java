@@ -127,6 +127,16 @@ public abstract class RealmProxyMediator {
      */
     public abstract <E extends RealmObject> E createUsingJsonStream(Class<E> clazz, Realm realm, JsonReader reader) throws java.io.IOException;
 
+    /**
+     * Creates a deep standalone copy of a RealmObject. This is a deep copy so all links will be copied as well.
+     * The depth can be restricted to a maximum depth after which all links will be turned into null values instead.
+     *
+     * @param realmObject RealmObject to copy. It must be a valid object.
+     * @param maxDepth restrict the depth of the copy to this level. The root object is depth {@code 0}.
+     * @return a standalone copy of the given object.
+     */
+    public abstract <E extends RealmObject> E createDetachedCopy(E realmObject, int maxDepth);
+
     @Override
     public boolean equals(Object o) {
         if (!(o instanceof RealmProxyMediator)) {

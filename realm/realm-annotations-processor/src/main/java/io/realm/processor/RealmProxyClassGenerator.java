@@ -118,6 +118,7 @@ public class RealmProxyClassGenerator {
         emitCreateUsingJsonStream(writer);
         emitCopyOrUpdateMethod(writer);
         emitCopyMethod(writer);
+        emitCreateDetachedCopyMethod(writer);
         emitUpdateMethod(writer);
         emitToStringMethod(writer);
         emitHashcodeMethod(writer);
@@ -696,6 +697,18 @@ public class RealmProxyClassGenerator {
         }
 
         writer.emitStatement("return realmObject");
+        writer.endMethod();
+        writer.emitEmptyLine();
+    }
+
+    private void emitCreateDetachedCopyMethod(JavaWriter writer) throws IOException {
+        writer.beginMethod(
+                className, // Return type
+                "createDetachedCopy", // Method name
+                EnumSet.of(Modifier.PUBLIC, Modifier.STATIC), // Modifiers
+                className, "realmObject", "int", "currentDepth", "int", "maxDepth");
+
+        writer.emitStatement("return null");
         writer.endMethod();
         writer.emitEmptyLine();
     }

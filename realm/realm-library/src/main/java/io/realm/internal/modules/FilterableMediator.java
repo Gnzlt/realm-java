@@ -121,6 +121,12 @@ public class FilterableMediator extends RealmProxyMediator {
         return originalMediator.createUsingJsonStream(clazz, realm, reader);
     }
 
+    @Override
+    public <E extends RealmObject> E createDetachedCopy(E realmObject, int maxDepth) {
+        checkSchemaHasClass(Util.getOriginalModelClass(realmObject.getClass()));
+        return originalMediator.createDetachedCopy(realmObject, maxDepth);
+    }
+
     // Validate if a model class (not RealmProxy) is part of this Schema.
     private void checkSchemaHasClass(Class<? extends RealmObject> clazz) {
         if (!allowedClasses.contains(clazz)) {
