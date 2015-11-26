@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import io.realm.annotations.Required;
 import io.realm.DynamicRealmObject;
 simport io.realm.entities.AllTypes;
+import io.realm.entities.AllTypes;
 import io.realm.entities.AllTypesPrimaryKey;
 import io.realm.entities.AnnotationIndexTypes;
 import io.realm.entities.Cat;
@@ -2260,6 +2261,38 @@ public class RealmTest extends AndroidTestCase {
         emptyRealm.close();
     }
 
+    public void testCopyInvalidObjectFromRealmThrows() {
+        testRealm.beginTransaction();
+        AllTypes obj = testRealm.createObject(AllTypes.class);
+        obj.removeFromRealm();
+        testRealm.commitTransaction();
+
+        try {
+            testRealm.copyFromRealm(obj);
+            fail();
+        } catch (IllegalArgumentException ignored) {
+        }
+
+        try {
+            testRealm.copyFromRealm(new AllTypes());
+            fail();
+        } catch (IllegalArgumentException ignored) {
+        }
+    }
+
+    public void testCopyFromRealmWithInvalidDepth() {
+        testRealm.beginTransaction();
+        AllTypes obj = testRealm.createObject(AllTypes.class);
+        testRealm.commitTransaction();
+
+        try {
+            testRealm.copyFromRealm(obj, -1);
+            fail();
+        } catch (IllegalArgumentException ignored) {
+        }
+    }
+
+
     public void testCopyFromRealm() {
         populateTestRealm();
         AllTypes realmObject = testRealm.where(AllTypes.class).findAllSorted("columnLong").first();
@@ -2272,5 +2305,17 @@ public class RealmTest extends AndroidTestCase {
         assertEquals(realmObject.isColumnBoolean(), standaloneObject.isColumnBoolean());
         assertEquals(realmObject.getColumnDate(), standaloneObject.getColumnDate());
         // TODO Test RealmObject and RealmList
+    }
+
+    // Test that the object graph is copied as it is and no extra copies are made
+    // List: [ownerA -> DogA, ownerB]
+    // Dog: [DogA]
+    // OwnerA.
+    public void testCopyFromRealmCyclicObjectGraph() {
+
+    }
+
+    public void testCopyFromRealmWithDepth() {
+
     }
 }

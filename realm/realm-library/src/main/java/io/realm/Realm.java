@@ -756,7 +756,7 @@ public final class Realm extends BaseRealm {
 
         ArrayList<E> standaloneObjects = new ArrayList<E>();
         for (E object : realmObjects) {
-            standaloneObjects.add(copyToRealmOrUpdate(object));
+            standaloneObjects.add(copyFromRealm(object, maxDepth));
         }
 
         return standaloneObjects;
@@ -779,6 +779,9 @@ public final class Realm extends BaseRealm {
         }
         if (!realmObject.isValid()) {
             throw new IllegalArgumentException("RealmObject is not valid, so it cannot be copied.");
+        }
+        if (maxDepth < 0) {
+            throw new IllegalArgumentException("maxDepth must be > 0. It was: " + maxDepth);
         }
         return createDetachedCopy(realmObject, maxDepth);
     }
