@@ -122,9 +122,9 @@ public class FilterableMediator extends RealmProxyMediator {
     }
 
     @Override
-    public <E extends RealmObject> E createDetachedCopy(E realmObject, int maxDepth) {
+    public <E extends RealmObject> E createDetachedCopy(E realmObject, int maxDepth, Map<RealmObject, RealmObjectProxy.CacheData<RealmObject>> cache) {
         checkSchemaHasClass(Util.getOriginalModelClass(realmObject.getClass()));
-        return originalMediator.createDetachedCopy(realmObject, maxDepth);
+        return originalMediator.createDetachedCopy(realmObject, maxDepth, cache);
     }
 
     // Validate if a model class (not RealmProxy) is part of this Schema.

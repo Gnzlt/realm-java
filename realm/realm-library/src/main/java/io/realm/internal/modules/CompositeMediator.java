@@ -104,9 +104,9 @@ public class CompositeMediator extends RealmProxyMediator {
     }
 
     @Override
-    public <E extends RealmObject> E createDetachedCopy(E realmObject, int maxDepth) {
+    public <E extends RealmObject> E createDetachedCopy(E realmObject, int maxDepth, Map<RealmObject, RealmObjectProxy.CacheData<RealmObject>> cache) {
         RealmProxyMediator mediator = getMediator(Util.getOriginalModelClass(realmObject.getClass()));
-        return mediator.createDetachedCopy(realmObject, maxDepth);
+        return mediator.createDetachedCopy(realmObject, maxDepth, cache);
     }
 
     // Returns the mediator for a given model class (not RealmProxy) or throws exception

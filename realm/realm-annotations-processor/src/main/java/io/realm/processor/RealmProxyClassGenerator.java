@@ -707,18 +707,28 @@ public class RealmProxyClassGenerator {
                 className, // Return type
                 "createDetachedCopy", // Method name
                 EnumSet.of(Modifier.PUBLIC, Modifier.STATIC), // Modifiers
-                className, "realmObject", "int", "currentDepth", "int", "maxDepth", "Map<RealmObject, RealmObject>", "cache");
-
+                className, "realmObject", "int", "currentDepth", "int", "maxDepth", "Map<RealmObject, CacheData<RealmObject>>", "cache");
         writer
             .beginControlFlow("if (currentDepth > maxDepth || realmObject == null)")
                 .emitStatement("return null")
             .endControlFlow()
-            .emitStatement("%1$s standaloneObject = new %1$s()", className)
-            .emitStatement("cache.put(realmObject, standaloneObject)");
+            .emitStatement("CacheData<%s> cachedObject = (CacheData) cache.get(realmObject)", className)
+            .emitStatement("%s standaloneObject", className)
+            .beginControlFlow("if (cachedObject != null)")
+                .emitSingleLineComment("Reuse cached object or recreate it because it was encountered at a lower depth.")
+                .beginControlFlow("if (currentDepth >= cachedObject.minDepth)")
+                    .emitStatement("return cachedObject.object")
+                .nextControlFlow("else")
+                    .emitStatement("standaloneObject = cachedObject.object")
+                    .emitStatement("cachedObject.minDepth = currentDepth")
+                .endControlFlow()
+            .nextControlFlow("else")
+                .emitStatement("standaloneObject = new %s()", className)
+                .emitStatement("cache.put(realmObject, new RealmObjectProxy.CacheData<RealmObject>(currentDepth, standaloneObject))")
+            .endControlFlow();
 
         for (VariableElement field : metadata.getFields()) {
             String fieldName = field.getSimpleName().toString();
-            String fieldType = field.asType().toString();
             String setter = metadata.getSetter(fieldName);
             String getter = metadata.getGetter(fieldName);
 
@@ -726,13 +736,8 @@ public class RealmProxyClassGenerator {
                 writer
                     .emitEmptyLine()
                     .emitSingleLineComment("Deep copy of %s", fieldName)
-                    .emitStatement("%1$s cached%2$sObj = (%1$s) cache.get(realmObject.%3$s())", fieldType, fieldName, getter)
-                    .beginControlFlow("if (cached%sObj != null)", fieldName)
-                        .emitStatement("standaloneObject.%s(cached%sObj)", setter, fieldName)
-                    .nextControlFlow("else")
-                        .emitStatement("standaloneObject.%s(%s.createDetachedCopy(realmObject.%s(), currentDepth + 1, maxDepth, cache))",
-                                setter, Utils.getProxyClassSimpleName(field), getter)
-                    .endControlFlow();
+                    .emitStatement("standaloneObject.%s(%s.createDetachedCopy(realmObject.%s(), currentDepth + 1, maxDepth, cache))",
+                                setter, Utils.getProxyClassSimpleName(field), getter);
             } else if (Utils.isRealmList(field)) {
                 writer
                     .emitEmptyLine()
@@ -746,8 +751,9 @@ public class RealmProxyClassGenerator {
                         .emitStatement("int nextDepth = currentDepth + 1")
                         .emitStatement("int size = managed%sList.size()", fieldName)
                         .beginControlFlow("for (int i = 0; i < size; i++)")
-                            .emitStatement("%s.createDetachedCopy(managed%sList.get(i), nextDepth, maxDepth, cache)",
-                                    Utils.getProxyClassSimpleName(field), fieldName)
+                            .emitStatement("%s item = %s.createDetachedCopy(managed%sList.get(i), nextDepth, maxDepth, cache)",
+                                    Utils.getGenericType(field), Utils.getProxyClassSimpleName(field), fieldName)
+                            .emitStatement("standalone%sList.add(item)", fieldName)
                         .endControlFlow()
                     .endControlFlow();
             } else {

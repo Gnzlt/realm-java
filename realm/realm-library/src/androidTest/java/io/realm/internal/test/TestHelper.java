@@ -33,7 +33,6 @@ import io.realm.internal.Table;
  */
 public class TestHelper {
 
-
     /**
      * Returns the corresponding column type for an object.
      * @param o

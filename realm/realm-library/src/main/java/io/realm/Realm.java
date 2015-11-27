@@ -218,8 +218,8 @@ public final class Realm extends BaseRealm {
      * Creates a {@link Realm} instance without checking the existence in the {@link RealmCache}.
      *
      * @param configuration {@link RealmConfiguration} used to create the Realm.
-     * @param columnIndices if this is not  {@code null} value, the {@link BaseRealm#columnIndices} will be initialized
-     *                      to it. Otherwise, {@link BaseRealm#columnIndices} will be populated from the Realm file.
+     * @param columnIndices if this is not  {@code null} value, the {@link BaseRealm#schema#columnIndices} will be initialized
+     *                      to it. Otherwise, {@link BaseRealm#schema#columnIndices} will be populated from the Realm file.
      * @return a {@link Realm} instance.
      */
     static Realm createInstance(RealmConfiguration configuration, ColumnIndices columnIndices) {
@@ -735,7 +735,7 @@ public final class Realm extends BaseRealm {
      */
     public <E extends RealmObject> List<E> copyToRealmOrUpdate(Iterable<E> objects) {
         if (objects == null) {
-            return new ArrayList<E>();
+            return new ArrayList<E>(0);
         }
 
         ArrayList<E> realmObjects = new ArrayList<E>();
@@ -767,13 +767,16 @@ public final class Realm extends BaseRealm {
      * @return
      */
     public <E extends RealmObject> List<E> copyFromRealm(Iterable<E> realmObjects, int maxDepth) {
+        checkMaxDepth(maxDepth);
         if (realmObjects == null) {
-            return new ArrayList<E>();
+            return new ArrayList<E>(0);
         }
 
         ArrayList<E> standaloneObjects = new ArrayList<E>();
+        Map<RealmObject, RealmObjectProxy.CacheData<RealmObject>> listCache = new HashMap<RealmObject, RealmObjectProxy.CacheData<RealmObject>>();
         for (E object : realmObjects) {
-            standaloneObjects.add(copyFromRealm(object, maxDepth));
+            checkValidObjectForDetach(object);
+            standaloneObjects.add(createDetachedCopy(object, maxDepth, listCache));
         }
 
         return standaloneObjects;
@@ -791,16 +794,9 @@ public final class Realm extends BaseRealm {
     }
 
     public <E extends RealmObject> E copyFromRealm(E realmObject, int maxDepth) {
-        if (realmObject == null) {
-            throw new IllegalArgumentException("Null objects cannot be copied from Realm.");
-        }
-        if (!realmObject.isValid()) {
-            throw new IllegalArgumentException("RealmObject is not valid, so it cannot be copied.");
-        }
-        if (maxDepth < 0) {
-            throw new IllegalArgumentException("maxDepth must be > 0. It was: " + maxDepth);
-        }
-        return createDetachedCopy(realmObject, maxDepth);
+        checkMaxDepth(maxDepth);
+        checkValidObjectForDetach(realmObject);
+        return createDetachedCopy(realmObject, maxDepth, new HashMap<RealmObject, RealmObjectProxy.CacheData<RealmObject>>());
     }
 
     boolean contains(Class<? extends RealmObject> clazz) {
@@ -1098,9 +1094,9 @@ public final class Realm extends BaseRealm {
         return configuration.getSchemaMediator().copyOrUpdate(this, object, update, new HashMap<RealmObject, RealmObjectProxy>());
     }
 
-    private <E extends RealmObject> E createDetachedCopy(E object, int maxDepth) {
+    private <E extends RealmObject> E createDetachedCopy(E object, int maxDepth, Map<RealmObject, RealmObjectProxy.CacheData<RealmObject>> cache) {
         checkIfValid();
-        return configuration.getSchemaMediator().createDetachedCopy(object, maxDepth);
+        return configuration.getSchemaMediator().createDetachedCopy(object, maxDepth, cache);
     }
 
     private <E extends RealmObject> void checkNotNullObject(E object) {
@@ -1112,6 +1108,21 @@ public final class Realm extends BaseRealm {
     private void checkHasPrimaryKey(Class<? extends RealmObject> clazz) {
         if (!getTable(clazz).hasPrimaryKey()) {
             throw new IllegalArgumentException("A RealmObject with no @PrimaryKey cannot be updated: " + clazz.toString());
+        }
+    }
+
+    private void checkMaxDepth(int maxDepth) {
+        if (maxDepth < 0) {
+            throw new IllegalArgumentException("maxDepth must be > 0. It was: " + maxDepth);
+        }
+    }
+
+    private <E extends RealmObject> void checkValidObjectForDetach(E realmObject) {
+        if (realmObject == null) {
+            throw new IllegalArgumentException("Null objects cannot be copied from Realm.");
+        }
+        if (!realmObject.isValid()) {
+            throw new IllegalArgumentException("RealmObject is not valid, so it cannot be copied.");
         }
     }
 

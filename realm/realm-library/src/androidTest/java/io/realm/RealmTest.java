@@ -41,12 +41,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import io.realm.annotations.Required;
-import io.realm.DynamicRealmObject;
-simport io.realm.entities.AllTypes;
 import io.realm.entities.AllTypes;
 import io.realm.entities.AllTypesPrimaryKey;
 import io.realm.entities.AnnotationIndexTypes;
@@ -2293,7 +2289,6 @@ public class RealmTest extends AndroidTestCase {
         }
     }
 
-
     public void testCopyFromRealm() {
         populateTestRealm();
         AllTypes realmObject = testRealm.where(AllTypes.class).findAllSorted("columnLong").first();
@@ -2305,18 +2300,130 @@ public class RealmTest extends AndroidTestCase {
         assertEquals(realmObject.getColumnDouble(), standaloneObject.getColumnDouble());
         assertEquals(realmObject.isColumnBoolean(), standaloneObject.isColumnBoolean());
         assertEquals(realmObject.getColumnDate(), standaloneObject.getColumnDate());
-        // TODO Test RealmObject and RealmList
+    }
+
+    public void testCopyFromRealmDifferentObjects() {
+        populateTestRealm();
+        AllTypes realmObject = testRealm.where(AllTypes.class).findAllSorted("columnLong").first();
+        AllTypes standaloneObject1 = testRealm.copyFromRealm(realmObject);
+        AllTypes standaloneObject2 = testRealm.copyFromRealm(realmObject);
+        assertFalse(standaloneObject1 == standaloneObject2);
+        assertNotSame(standaloneObject1, standaloneObject2);
     }
 
     // Test that the object graph is copied as it is and no extra copies are made
-    // List: [ownerA -> DogA, ownerB]
-    // Dog: [DogA]
-    // OwnerA.
+    // 1) (A -> B/[B,C])
+    // 2) (C -> B/[B,A])
+    // A copy should result in only 3 distinct objects
     public void testCopyFromRealmCyclicObjectGraph() {
+        testRealm.beginTransaction();
+        CyclicType objA = testRealm.createObject(CyclicType.class); objA.setName("A");
+        CyclicType objB = testRealm.createObject(CyclicType.class); objB.setName("B");
+        CyclicType objC = testRealm.createObject(CyclicType.class); objC.setName("C");
+        objA.setObject(objB);
+        objC.setObject(objB);
+        objA.getObjects().add(objB);
+        objA.getObjects().add(objC);
+        objC.getObjects().add(objB);
+        objC.getObjects().add(objA);
+        testRealm.commitTransaction();
 
+        CyclicType copyA = testRealm.copyFromRealm(objA);
+        CyclicType copyB = copyA.getObject();
+        CyclicType copyC = copyA.getObjects().get(1);
+
+        assertEquals("A", copyA.getName());
+        assertEquals("B", copyB.getName());
+        assertEquals("C", copyC.getName());
+
+        // Assert object equality on the object graph
+        assertTrue(copyA.getObject() == copyC.getObject());
+        assertTrue(copyA.getObjects().get(0) == copyC.getObjects().get(0));
+        assertTrue(copyA == copyC.getObjects().get(1));
+        assertTrue(copyC == copyA.getObjects().get(1));
     }
 
+    // Test that for (A -> B -> C) for maxDepth = 1, result is (A -> B -> null)
     public void testCopyFromRealmWithDepth() {
+        testRealm.beginTransaction();
+        CyclicType objA = testRealm.createObject(CyclicType.class); objA.setName("A");
+        CyclicType objB = testRealm.createObject(CyclicType.class); objB.setName("B");
+        CyclicType objC = testRealm.createObject(CyclicType.class); objC.setName("C");
+        objA.setObject(objB);
+        objC.setObject(objC);
+        objA.getObjects().add(objB);
+        objA.getObjects().add(objC);
+        testRealm.commitTransaction();
 
+        CyclicType copyA = testRealm.copyFromRealm(objA, 1);
+
+        assertNull(copyA.getObject().getObject());
+    }
+
+    // Test that depth restriction is calculated from the top-most encountered object, i.e. it is possible for some
+    // objects to exceed the depth limit.
+    // A -> B -> C -> D -> E
+    // A -> D -> E
+    // D is both at depth 1 and 3. For maxDepth = 3, E should still be copied.
+    public void testCopyFromRealmWithDifferentDepths() {
+        testRealm.beginTransaction();
+        CyclicType objA = testRealm.createObject(CyclicType.class); objA.setName("A");
+        CyclicType objB = testRealm.createObject(CyclicType.class); objB.setName("B");
+        CyclicType objC = testRealm.createObject(CyclicType.class); objC.setName("C");
+        CyclicType objD = testRealm.createObject(CyclicType.class); objD.setName("D");
+        CyclicType objE = testRealm.createObject(CyclicType.class); objE.setName("E");
+        objA.setObject(objB);
+        objB.setObject(objC);
+        objC.setObject(objD);
+        objD.setObject(objE);
+        objA.setOtherObject(objD);
+        testRealm.commitTransaction();
+
+        // object is filled before otherObject (because of field order - WARNING: Not guaranteed)
+        // this means that the object will be encountered first time at max depth, so E will not be copied.
+        // If the object cache does not handle this, otherObject will be wrong.
+        CyclicType copyA = testRealm.copyFromRealm(objA, 3);
+        assertEquals("E", copyA.getOtherObject().getObject().getName());
+    }
+
+    public void testCopyListInvalidObjectFromRealmThrows() {
+        testRealm.beginTransaction();
+        AllTypes object = testRealm.createObject(AllTypes.class);
+        List<AllTypes> list = new RealmList<AllTypes>(object);
+        object.removeFromRealm();
+        testRealm.commitTransaction();
+
+        try {
+            testRealm.copyFromRealm(list);
+            fail();
+        } catch (IllegalArgumentException ignored) {
+        }
+    }
+
+    public void testCopyListFromRealmWithInvalidDepth() {
+        RealmResults<AllTypes> results = testRealm.allObjects(AllTypes.class);
+        try {
+            testRealm.copyFromRealm(results, -1);
+            fail();
+        } catch (IllegalArgumentException ignored) {
+        }
+    }
+
+    // Test that the same Realm objects in a list result in the same Java in-memory copy.
+    // List: A -> [(B -> C), (B -> C)] should result in only 2 copied objects A and B and not A1, B1, A2, B2
+    public void testCopyListFromRealmSameElements() {
+        testRealm.beginTransaction();
+        CyclicType objA = testRealm.createObject(CyclicType.class); objA.setName("A");
+        CyclicType objB = testRealm.createObject(CyclicType.class); objB.setName("B");
+        CyclicType objC = testRealm.createObject(CyclicType.class); objC.setName("C");
+        objB.setObject(objC);
+        objA.getObjects().add(objB);
+        objA.getObjects().add(objB);
+        testRealm.commitTransaction();
+
+        List<CyclicType> results = testRealm.copyFromRealm(objA.getObjects());
+        assertEquals(2, results.size());
+        assertEquals("B", results.get(0).getName());
+        assertTrue(results.get(0) == results.get(1));
     }
 }
