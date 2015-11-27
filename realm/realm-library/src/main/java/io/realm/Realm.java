@@ -747,24 +747,30 @@ public final class Realm extends BaseRealm {
     }
 
     /**
-     * Makes a standalone copy of already persisted RealmObjects. This is a deep copy that will also copy all linked
-     * objects. If a {@link Iterable} contains standalone objects they will be copied as well.
+     * Makes a standalone in-memory copy of already persisted RealmObjects. This is a deep copy that will copy all
+     * referenced objects.
+     *
+     * The copied objects are all detached from Realm so they will no longer be automatically updated.
      *
      * @param realmObjects RealmObjects to copy
      * @param <E> type of object.
-     * @return A standalone copy of the managed objects.
+     * @return an in-memory detached copy of managed RealmObjects.
      */
     public <E extends RealmObject> List<E> copyFromRealm(Iterable<E> realmObjects) {
         return copyFromRealm(realmObjects, Integer.MAX_VALUE);
     }
 
     /**
-     * TODO
+     * Makes a standalone in-memory copy of already persisted RealmObjects. This is a deep copy that will copy all
+     * referenced objects up to the defined depth.
      *
-     * @param realmObjects
-     * @param maxDepth How deep a copy to make. Root is depth {@code 0}.
-     * @param <E>
-     * @return
+     * The copied objects are all detached from Realm so they will no longer be automatically updated.
+     *
+     * @param realmObjects RealmObjects to copy.
+     * @param maxDepth limit of the deep copy. All references after this depth will be {@code null}. Starting depth is {@code 0}.
+     * @param <E> type of object.
+     * @return an in-memory detached copy of the RealmObjects.
+     * @throws IllegalArgumentException if {@code maxDepth < 0} or if the RealmObjects are not accessible.
      */
     public <E extends RealmObject> List<E> copyFromRealm(Iterable<E> realmObjects, int maxDepth) {
         checkMaxDepth(maxDepth);
@@ -783,16 +789,32 @@ public final class Realm extends BaseRealm {
     }
 
     /**
-     * TODO
+     * Makes a standalone in-memory copy of an already persisted {@link RealmObject}. This is a deep copy that will copy
+     * all referenced objects.
      *
-     * @param realmObject
-     * @param <E>
-     * @return
+     * The copied object(s) are all detached from Realm so they will no longer be automatically updated.
+     *
+     * @param realmObject {@link RealmObject} to copy
+     * @param <E> type of object.
+     * @return an in-memory detached copy of the managed {@link RealmObject}.
+     * @throws IllegalArgumentException if {@code maxDepth < 0} or the RealmObject is no longer accessible.
      */
     public <E extends RealmObject> E copyFromRealm(E realmObject) {
         return copyFromRealm(realmObject, Integer.MAX_VALUE);
     }
 
+    /**
+     * Makes a standalone in-memory copy of an already persisted {@link RealmObject}. This is a deep copy that will copy
+     * all referenced objects up to the defined depth.
+     *
+     * The copied object(s) are all detached from Realm so they will no longer be automatically updated.
+     *
+     * @param realmObject {@link RealmObject} to copy
+     * @param maxDepth limit of the deep copy. All references after this depth will be {@code null}. Starting depth is {@code 0}.
+     * @param <E> type of object.
+     * @return an in-memory detached copy of the managed {@link RealmObject}.
+     * @throws IllegalArgumentException if {@code maxDepth < 0} or the RealmObject is no longer accessible.
+     */
     public <E extends RealmObject> E copyFromRealm(E realmObject, int maxDepth) {
         checkMaxDepth(maxDepth);
         checkValidObjectForDetach(realmObject);
