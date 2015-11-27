@@ -668,6 +668,52 @@ public class AllTypesRealmProxy extends AllTypes
         return realmObject;
     }
 
+    public static AllTypes createDetachedCopy(AllTypes realmObject, int currentDepth, int maxDepth, Map<RealmObject, CacheData<RealmObject>> cache) {
+        if (currentDepth > maxDepth || realmObject == null) {
+            return null;
+        }
+        CacheData<AllTypes> cachedObject = (CacheData) cache.get(realmObject);
+        AllTypes standaloneObject;
+        if (cachedObject != null) {
+            // Reuse cached object or recreate it because it was encountered at a lower depth.
+            if (currentDepth >= cachedObject.minDepth) {
+                return cachedObject.object;
+            } else {
+                standaloneObject = cachedObject.object;
+                cachedObject.minDepth = currentDepth;
+            }
+        } else {
+            standaloneObject = new AllTypes();
+            cache.put(realmObject, new RealmObjectProxy.CacheData<RealmObject>(currentDepth, standaloneObject));
+        }
+        standaloneObject.setColumnString(realmObject.getColumnString());
+        standaloneObject.setColumnLong(realmObject.getColumnLong());
+        standaloneObject.setColumnFloat(realmObject.getColumnFloat());
+        standaloneObject.setColumnDouble(realmObject.getColumnDouble());
+        standaloneObject.setColumnBoolean(realmObject.isColumnBoolean());
+        standaloneObject.setColumnDate(realmObject.getColumnDate());
+        standaloneObject.setColumnBinary(realmObject.getColumnBinary());
+
+        // Deep copy of columnObject
+        standaloneObject.setColumnObject(AllTypesRealmProxy.createDetachedCopy(realmObject.getColumnObject(), currentDepth + 1, maxDepth, cache));
+
+        // Deep copy of columnRealmList
+        if (currentDepth == maxDepth) {
+            standaloneObject.setColumnRealmList(null);
+        } else {
+            RealmList<AllTypes> managedcolumnRealmListList = realmObject.getColumnRealmList();
+            RealmList<AllTypes> standalonecolumnRealmListList = new RealmList<AllTypes>();
+            standaloneObject.setColumnRealmList(standalonecolumnRealmListList);
+            int nextDepth = currentDepth + 1;
+            int size = managedcolumnRealmListList.size();
+            for (int i = 0; i < size; i++) {
+                AllTypes item = AllTypesRealmProxy.createDetachedCopy(managedcolumnRealmListList.get(i), nextDepth, maxDepth, cache);
+                standalonecolumnRealmListList.add(item);
+            }
+        }
+        return standaloneObject;
+    }
+
     static AllTypes update(Realm realm, AllTypes realmObject, AllTypes newObject, Map<RealmObject, RealmObjectProxy> cache) {
         realmObject.setColumnLong(newObject.getColumnLong());
         realmObject.setColumnFloat(newObject.getColumnFloat());
@@ -701,41 +747,6 @@ public class AllTypesRealmProxy extends AllTypes
             }
         }
         return realmObject;
-    }
-
-    public static AllTypes createDetachedCopy(AllTypes realmObject, int currentDepth, int maxDepth, Map<RealmObject, RealmObject> cache) {
-        if (currentDepth > maxDepth || realmObject == null) {
-            return null;
-        }
-        AllTypes standaloneObject = new AllTypes();
-        cache.put(realmObject, standaloneObject);
-
-        standaloneObject.setColumnLong(realmObject.getColumnLong());
-        standaloneObject.setColumnFloat(realmObject.getColumnFloat());
-        standaloneObject.setColumnDouble(realmObject.getColumnDouble());
-        standaloneObject.setColumnBoolean(realmObject.isColumnBoolean());
-        standaloneObject.setColumnDate(realmObject.getColumnDate());
-        standaloneObject.setColumnBinary(realmObject.getColumnBinary());
-        // Copy YYY
-        AllTypes cachedXXXObject = (AllTypes) cache.get(realmObject);
-        if (cachedXXXObject != null) {
-            standaloneObject.setColumnObject(cachedXXXObject);
-        } else {
-            standaloneObject.setColumnObject(AllTypesRealmProxy.createDetachedCopy(realmObject.getColumnObject(), currentDepth + 1, maxDepth, cache));
-        }
-        // Copy XXX
-        if (currentDepth == maxDepth) {
-            standaloneObject.setColumnRealmList(null);
-        } else {
-            List<AllTypes> managedXXXList = realmObject.getColumnRealmList();
-            List<AllTypes> standaloneXXXList = new ArrayList<AllTypes>();
-            standaloneObject.setColumnRealmList(standaloneXXXList);
-            int nextDepth = currentDepth + 1;
-            int size = managedXXXList.size()
-            for (int i = 0; i < size; i++) {
-                standaloneXXXList.add(AllTypesRealmProxy.createDetachedCopy(managedXXXList.get(i), nextDepth , maxDepth, cache)
-            }
-        }
     }
 
     @Override

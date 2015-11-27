@@ -40,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
 import java.util.Set;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
 
 import io.realm.exceptions.RealmException;
@@ -109,9 +108,6 @@ import io.realm.internal.log.RealmLog;
 public final class Realm extends BaseRealm {
 
     public static final String DEFAULT_REALM_NAME = RealmConfiguration.DEFAULT_REALM_NAME;
-
-    // Map between Realm file that has already been validated and Model class's column information
-    static final Map<String, ColumnIndices> validatedRealmFiles = new HashMap<String, ColumnIndices>();
 
     // Caches Class objects (both model classes and proxy classes) to Realm Tables
     private final Map<Class<? extends RealmObject>, Table> classToTable =
